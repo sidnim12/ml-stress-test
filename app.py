@@ -30,7 +30,9 @@ def index():
             return f"Target column '{target_col}' not found in dataset."
         
         try:
-            baseline_accuracy = train_baseline_model(df, target_col)
+            _, baseline_accuracy = train_baseline_model(df, target_col)
+            
+            baseline_accuracy = float(baseline_accuracy)
             
         except Exception as e:
             return f"Model training error : {e}"
@@ -41,7 +43,7 @@ def index():
             rows = df.shape[0],
             cols = df.shape[1],
             target = target_col,
-            baseline_metric = round(baseline_accuracy, 4)
+            baseline_metric = f"{baseline_accuracy*100:.2f}"
         )
         
     return render_template("index.html")
