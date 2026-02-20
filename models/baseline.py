@@ -49,3 +49,23 @@ def train_baseline_model(df: pd.DataFrame, target_col: str, seed: int = 42):
     ])
     
     
+    model = Pipeline([
+        ("preprocessor",preprocessor,
+         "randomforest", LogisticRegression(max_iter=1000))
+    ])
+    
+    
+    
+    X_train, X_test, y_train, y_test = train_test_split(X,
+                                                        y,
+                                                        random_state=42,
+                                                        stratify=y if y.nunique <= 20 else None
+                                                        )
+    model.fit(X_train, y_train)
+    
+    y_preds = model.predict(X_test)
+    accuracy = accuracy_score(y_true=y_test, y_pred=y_preds)
+    
+    return model, accuracy
+    
+    
