@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -19,6 +19,11 @@
           <p>Baseline evaluation · Reliability testing for ML</p>
         </div>
       </div>
+
+      <!-- Theme toggle (NEW) -->
+      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
+        🌙
+      </button>
 
       <div class="hero-mini">
         <div class="hero-title">Stress-test your model before production</div>
@@ -151,5 +156,33 @@
     </div>
 
   </div>
+
+  <!-- Theme toggle script (NEW) -->
+  <script>
+    (function () {
+      const html = document.documentElement;
+      const btn = document.getElementById("themeToggle");
+
+      function applyTheme(theme) {
+        html.setAttribute("data-theme", theme);
+        btn.textContent = (theme === "dark") ? "☀️" : "🌙";
+        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
+        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
+      }
+
+      const saved = localStorage.getItem("theme");
+      const systemPrefersDark =
+        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+
+      btn.addEventListener("click", () => {
+        const current = html.getAttribute("data-theme") || "light";
+        const next = (current === "dark") ? "light" : "dark";
+        localStorage.setItem("theme", next);
+        applyTheme(next);
+      });
+    })();
+  </script>
 </body>
 </html>

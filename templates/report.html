@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -17,6 +17,12 @@
           <p>Task-aware performance metrics · Foundation for robustness testing</p>
         </div>
       </div>
+
+      <!-- Theme toggle (NEW) -->
+      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
+        🌙
+      </button>
+
       <div class="pill">Task: {{ results.task }}</div>
     </div>
 
@@ -69,9 +75,7 @@
           <tbody>
             {% for k, v in results.baseline.items() %}
               <tr>
-                <td>
-                  <code class="metric-key">{{ k }}</code>
-                </td>
+                <td><code class="metric-key">{{ k }}</code></td>
                 <td>
                   {% if v is none %}
                     N/A
@@ -126,5 +130,33 @@
     </div>
 
   </div>
+
+  <!-- Theme toggle script (NEW) -->
+  <script>
+    (function () {
+      const html = document.documentElement;
+      const btn = document.getElementById("themeToggle");
+
+      function applyTheme(theme) {
+        html.setAttribute("data-theme", theme);
+        btn.textContent = (theme === "dark") ? "☀️" : "🌙";
+        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
+        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
+      }
+
+      const saved = localStorage.getItem("theme");
+      const systemPrefersDark =
+        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+
+      btn.addEventListener("click", () => {
+        const current = html.getAttribute("data-theme") || "light";
+        const next = (current === "dark") ? "light" : "dark";
+        localStorage.setItem("theme", next);
+        applyTheme(next);
+      });
+    })();
+  </script>
 </body>
 </html>

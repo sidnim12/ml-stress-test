@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -17,7 +17,11 @@
           <p>Error {{ code }} · ML Robustness Stress Tester</p>
         </div>
       </div>
-      <div class="pill">Local tool · Flask + sklearn</div>
+
+      <!-- Theme toggle (NEW) -->
+      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
+        🌙
+      </button>
     </div>
 
     <div class="card">
@@ -46,7 +50,7 @@
 
           <div class="error-actions">
             <a class="btn btn-primary-home" href="{{ url_for('index') }}">
-            Return Home
+              Return Home
             </a>
           </div>
 
@@ -60,5 +64,33 @@
     </div>
 
   </div>
+
+  <!-- Theme toggle script (NEW) -->
+  <script>
+    (function () {
+      const html = document.documentElement;
+      const btn = document.getElementById("themeToggle");
+
+      function applyTheme(theme) {
+        html.setAttribute("data-theme", theme);
+        btn.textContent = (theme === "dark") ? "☀️" : "🌙";
+        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
+        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
+      }
+
+      const saved = localStorage.getItem("theme");
+      const systemPrefersDark =
+        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+
+      btn.addEventListener("click", () => {
+        const current = html.getAttribute("data-theme") || "light";
+        const next = (current === "dark") ? "light" : "dark";
+        localStorage.setItem("theme", next);
+        applyTheme(next);
+      });
+    })();
+  </script>
 </body>
 </html>
