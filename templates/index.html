@@ -1,19 +1,114 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ML Stress Tester</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ML Robustness Stress Tester</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>ML Robustness Stress Tester</h1>
+  <div class="container">
 
-    <form method="POST" enctype="multipart/form-data">
-        <label>Upload CSV Dataset:</label><br>
-        <input type="file" name="dataset" required><br><br>
+    <div class="topbar">
+      <div class="brand">
+        <div class="badge">RT</div>
+        <div>
+          <h1>ML Robustness Stress Tester</h1>
+          <p>Baseline evaluation now · Stress tests from Phase 2</p>
+        </div>
+      </div>
+      <div class="pill">Local tool · Flask + sklearn</div>
+    </div>
 
-        <label>Target Column:</label><br>
-        <input type="text" name="target" required><br><br>
+    <div class="card">
+      <div class="card-inner">
+        <div class="grid">
 
-        <button type="submit">Run Baseline Evaluation</button>
-    </form>
+          <div>
+            <p class="h2">Upload Dataset</p>
+            <p class="sub">
+              This tool evaluates baseline performance and later stress-tests model stability under controlled perturbations
+              (noise, missingness, shift, feature drop, class imbalance).
+            </p>
+
+            <form class="form" method="POST" enctype="multipart/form-data">
+              <div>
+                <div class="label">CSV Dataset</div>
+                <input class="file" type="file" name="dataset" accept=".csv" required />
+                <div class="note">Tip: Use a clean tabular dataset. For Phase 1, we automatically handle missing values in features and drop rows with missing targets.</div>
+              </div>
+
+              <div class="row">
+                <div>
+                  <div class="label">Target Column</div>
+                  <input class="input" type="text" name="target" placeholder="e.g., label / target / y" required />
+                </div>
+
+                <div>
+                  <div class="label">Mode</div>
+                  <select class="input" name="mode" disabled>
+                    <option selected>Baseline Mode (default)</option>
+                  </select>
+                  <div class="note">Model upload will be added later (Product polish phase).</div>
+                </div>
+              </div>
+
+              <button class="btn" type="submit">Run Baseline Evaluation</button>
+
+              <div class="hr"></div>
+
+              <div class="note">
+                <strong>What happens next?</strong><br>
+                Phase 1 improves correctness (task detection + metric registry). Phase 2 starts robustness testing with noise injection
+                and builds degradation curves.
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <p class="h2">What this tool measures</p>
+            <p class="sub">Think of this like a reliability test for ML models. Accuracy alone is not enough.</p>
+
+            <div class="kpis">
+              <div class="kpi">
+                <p class="k">Goal</p>
+                <p class="v">Stability</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Output</p>
+                <p class="v">Report</p>
+              </div>
+              <div class="kpi">
+                <p class="k">Method</p>
+                <p class="v">Stress</p>
+              </div>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="tag"><span class="dot good"></span> Graceful degradation</div>
+            <div style="height:8px"></div>
+            <div class="tag"><span class="dot warn"></span> Detect breakpoints</div>
+            <div style="height:8px"></div>
+            <div class="tag"><span class="dot bad"></span> Reveal fragility</div>
+
+            <div class="hr"></div>
+
+            <p class="note">
+              <strong>Traditional ML asks:</strong> “How high is the score?”<br>
+              <strong>This tool asks:</strong> “How easily does it collapse?”
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Phase 0/1 UI · Minimal dependencies · Built for clarity</div>
+      <div>Next: Phase 1 baseline correctness + Phase 2 noise stress test</div>
+    </div>
+
+  </div>
 </body>
 </html>

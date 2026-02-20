@@ -1,19 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Baseline Report</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Baseline Report</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Baseline Evaluation Report</h1>
+  <div class="container">
 
-    <p><strong>Rows:</strong> {{ rows }}</p>
-    <p><strong>Columns:</strong> {{ cols }}</p>
-    <p><strong>Target Column:</strong> {{ target }}</p>
-    <p><strong>Baseline Accuracy:</strong> {{ baseline_metric }}</p>
+    <div class="topbar">
+      <div class="brand">
+        <div class="badge">RT</div>
+        <div>
+          <h1>Baseline Evaluation Report</h1>
+          <p>Task-aware metrics · Ready for stress tests</p>
+        </div>
+      </div>
+      <div class="pill">Task: {{ results.task }}</div>
+    </div>
 
-    <hr>
-    <p>Stress tests will be added in Phase 2.</p>
+    <div class="card">
+      <div class="card-inner">
 
-    <a href="/">Run Again</a>
+        <div class="kpis">
+          <div class="kpi">
+            <p class="k">Rows</p>
+            <p class="v">{{ results.rows }}</p>
+          </div>
+          <div class="kpi">
+            <p class="k">Columns</p>
+            <p class="v">{{ results.cols }}</p>
+          </div>
+          <div class="kpi">
+            <p class="k">Target</p>
+            <p class="v">{{ results.target }}</p>
+          </div>
+        </div>
+
+        {% if results.dropped_target_nan_rows and results.dropped_target_nan_rows > 0 %}
+          <div class="hr"></div>
+          <p class="note">
+            <strong>Data note:</strong> Dropped <strong>{{ results.dropped_target_nan_rows }}</strong> rows due to missing target values.
+            (Targets should not be imputed.)
+          </p>
+        {% endif %}
+
+        <div class="hr"></div>
+
+        <p class="h2">Baseline Metrics</p>
+        <p class="sub">
+          These metrics establish the baseline before stress testing. In Phase 2+, the same metrics will be tracked under controlled perturbations.
+        </p>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for k, v in results.baseline.items() %}
+              <tr>
+                <td><code style="font-family: var(--mono); color: rgba(255,255,255,0.9);">{{ k }}</code></td>
+                <td>
+                  {% if v is none %}
+                    N/A
+                  {% else %}
+                    {% if v != v %}
+                      NaN
+                    {% else %}
+                      {{ v }}
+                    {% endif %}
+                  {% endif %}
+                </td>
+                <td style="color: rgba(255,255,255,0.60); font-size: 12px;">
+                  {% if k in ['roc_auc','pr_auc','log_loss'] %}
+                    Probability-based metric (needs predict_proba; binary/multiclass rules apply)
+                  {% elif k in ['accuracy','balanced_accuracy','f1','precision','recall'] %}
+                    Label-based classification metric
+                  {% elif k in ['rmse','mae','r2','mape_percent','smape_percent'] %}
+                    Regression metric
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="hr"></div>
+
+        <p class="h2">What’s next</p>
+        <p class="note">
+          <strong>Phase 2:</strong> Noise Injection Stress Test (metric vs noise curve + degradation).<br>
+          <strong>Phase 3:</strong> Feature Drop Sensitivity (critical feature dependence).<br>
+          <strong>Phase 4:</strong> Missingness Shock (tolerance thresholds).<br>
+          <strong>Phase 5:</strong> Covariate Shift (distribution drift simulation).
+        </p>
+
+        <div class="hr"></div>
+        <a class="btn" href="/" style="display:inline-block; text-align:center;">Run Another Dataset</a>
+
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Baseline engine · Task-aware metrics registry · Safe metric computation</div>
+      <div>Next deliverable: Phase 2 noise stress + degradation curve outputs</div>
+    </div>
+
+  </div>
 </body>
 </html>
