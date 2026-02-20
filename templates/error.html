@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ code }} · {{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="badge">RT</div>
+        <div>
+          <h1>{{ title }}</h1>
+          <p>Error {{ code }} · ML Robustness Stress Tester</p>
+        </div>
+      </div>
+      <div class="pill">Local tool · Flask + sklearn</div>
+    </div>
+
+    <div class="card">
+      <div class="card-inner">
+        <div class="error-wrap">
+
+          <div class="error-code">{{ code }}</div>
+
+          <p class="h2" style="margin-top:10px;">{{ message }}</p>
+
+          {% if hint %}
+            <p class="sub">{{ hint }}</p>
+          {% endif %}
+
+          {% if path %}
+            <div class="note">Path: <span class="mono">{{ path }}</span></div>
+          {% endif %}
+
+          {% if details %}
+            <div class="hr"></div>
+            <p class="note"><strong>Debug details (only in debug mode):</strong></p>
+            <pre class="error-details">{{ details }}</pre>
+          {% endif %}
+
+          <div class="hr"></div>
+
+          <div class="error-actions">
+            <a class="btn btn-primary-home" href="{{ url_for('index') }}">
+            Return Home
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Robustness-first UI · Errors shown in-theme</div>
+      <div>Tip: verify dataset + target column</div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -9,65 +9,94 @@
 <body>
   <div class="container">
 
+    <!-- Topbar -->
     <div class="topbar">
+
       <div class="brand">
         <div class="badge">RT</div>
         <div>
           <h1>ML Robustness Stress Tester</h1>
-          <p>Baseline evaluation now · Stress tests from Phase 2</p>
+          <p>Baseline evaluation · Reliability testing for ML</p>
         </div>
       </div>
-      <div class="pill">Local tool · Flask + sklearn</div>
+
+      <div class="hero-mini">
+        <div class="hero-title">Stress-test your model before production</div>
+        <div class="hero-sub">
+          Baseline evaluation • Robustness curves • Breakpoints & graceful degradation
+        </div>
+        <div class="trust-row">
+          <span class="trust-pill">Leakage-safe defaults</span>
+          <span class="trust-pill">Tabular ML ready</span>
+          <span class="trust-pill">Noise • Missingness • Shift</span>
+        </div>
+      </div>
+
     </div>
 
+    <!-- MAIN CARD -->
     <div class="card">
       <div class="card-inner">
+
         <div class="grid">
 
+          <!-- LEFT SIDE -->
           <div>
             <p class="h2">Upload Dataset</p>
             <p class="sub">
-              This tool evaluates baseline performance and later stress-tests model stability under controlled perturbations
+              This tool evaluates baseline performance and stress-tests model
+              stability under controlled perturbations
               (noise, missingness, shift, feature drop, class imbalance).
             </p>
 
             <form class="form" method="POST" enctype="multipart/form-data">
+
               <div>
                 <div class="label">CSV Dataset</div>
                 <input class="file" type="file" name="dataset" accept=".csv" required />
-                <div class="note">Tip: Use a clean tabular dataset. For Phase 1, we automatically handle missing values in features and drop rows with missing targets.</div>
+                <div class="note">
+                  Use a clean tabular dataset. Missing values in features are handled automatically.
+                </div>
               </div>
 
               <div class="row">
                 <div>
                   <div class="label">Target Column</div>
-                  <input class="input" type="text" name="target" placeholder="e.g., label / target / y" required />
+                  <input class="input" type="text" name="target"
+                    placeholder="e.g., label / target / y" required />
                 </div>
 
                 <div>
                   <div class="label">Mode</div>
-                  <select class="input" name="mode" disabled>
+                  <select class="input" disabled>
                     <option selected>Baseline Mode (default)</option>
                   </select>
-                  <div class="note">Model upload will be added later (Product polish phase).</div>
+                  <div class="note">Custom model upload coming soon.</div>
                 </div>
               </div>
 
-              <button class="btn" type="submit">Run Baseline Evaluation</button>
+              <button class="btn" type="submit">
+                Run Baseline Evaluation
+              </button>
 
               <div class="hr"></div>
 
               <div class="note">
                 <strong>What happens next?</strong><br>
-                Phase 1 improves correctness (task detection + metric registry). Phase 2 starts robustness testing with noise injection
-                and builds degradation curves.
+                The system detects task type automatically and prepares
+                stress-testing diagnostics.
               </div>
+
             </form>
           </div>
 
+          <!-- RIGHT SIDE -->
           <div>
             <p class="h2">What this tool measures</p>
-            <p class="sub">Think of this like a reliability test for ML models. Accuracy alone is not enough.</p>
+            <p class="sub">
+              Think of this as a reliability test for ML models.
+              Accuracy alone is not enough.
+            </p>
 
             <div class="kpis">
               <div class="kpi">
@@ -92,21 +121,33 @@
             <div style="height:8px"></div>
             <div class="tag"><span class="dot bad"></span> Reveal fragility</div>
 
-            <div class="hr"></div>
+            <div class="right-note">
+              <div class="right-note-title">What you get</div>
+              <div class="right-note-body">
+                A baseline score plus stress curves that show how performance
+                degrades under noise, missingness, and shift.
+              </div>
+            </div>
 
-            <p class="note">
-              <strong>Traditional ML asks:</strong> “How high is the score?”<br>
-              <strong>This tool asks:</strong> “How easily does it collapse?”
-            </p>
           </div>
 
         </div>
+
+        <div class="hr"></div>
+
+        <p class="note" style="margin:0;">
+          <strong>Traditional ML asks:</strong> “How high is the score?”
+          &nbsp;•&nbsp;
+          <strong>This tool asks:</strong> “How easily does it collapse?”
+        </p>
+
       </div>
     </div>
 
+    <!-- FOOTER -->
     <div class="footer">
-      <div>Phase 0/1 UI · Minimal dependencies · Built for clarity</div>
-      <div>Next: Phase 1 baseline correctness + Phase 2 noise stress test</div>
+      <div>Minimal dependencies · Built for clarity</div>
+      <div>Robustness evaluation framework</div>
     </div>
 
   </div>

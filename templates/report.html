@@ -14,7 +14,7 @@
         <div class="badge">RT</div>
         <div>
           <h1>Baseline Evaluation Report</h1>
-          <p>Task-aware metrics · Ready for stress tests</p>
+          <p>Task-aware performance metrics · Foundation for robustness testing</p>
         </div>
       </div>
       <div class="pill">Task: {{ results.task }}</div>
@@ -23,6 +23,7 @@
     <div class="card">
       <div class="card-inner">
 
+        <!-- KPI SECTION -->
         <div class="kpis">
           <div class="kpi">
             <p class="k">Rows</p>
@@ -41,16 +42,20 @@
         {% if results.dropped_target_nan_rows and results.dropped_target_nan_rows > 0 %}
           <div class="hr"></div>
           <p class="note">
-            <strong>Data note:</strong> Dropped <strong>{{ results.dropped_target_nan_rows }}</strong> rows due to missing target values.
-            (Targets should not be imputed.)
+            <strong>Data integrity note:</strong>
+            Dropped <strong>{{ results.dropped_target_nan_rows }}</strong> rows due to missing target values.
+            Target values are never imputed to preserve evaluation correctness.
           </p>
         {% endif %}
 
         <div class="hr"></div>
 
+        <!-- BASELINE METRICS -->
         <p class="h2">Baseline Metrics</p>
         <p class="sub">
-          These metrics establish the baseline before stress testing. In Phase 2+, the same metrics will be tracked under controlled perturbations.
+          These metrics define the model’s reference performance under clean data conditions.
+          All future stress experiments will track the same metrics to measure
+          stability, degradation rate, and structural breakpoints.
         </p>
 
         <table class="table">
@@ -64,7 +69,9 @@
           <tbody>
             {% for k, v in results.baseline.items() %}
               <tr>
-                <td><code style="font-family: var(--mono); color: rgba(255,255,255,0.9);">{{ k }}</code></td>
+                <td>
+                  <code class="metric-key">{{ k }}</code>
+                </td>
                 <td>
                   {% if v is none %}
                     N/A
@@ -76,13 +83,13 @@
                     {% endif %}
                   {% endif %}
                 </td>
-                <td style="color: rgba(255,255,255,0.60); font-size: 12px;">
+                <td class="metric-notes">
                   {% if k in ['roc_auc','pr_auc','log_loss'] %}
-                    Probability-based metric (needs predict_proba; binary/multiclass rules apply)
+                    Probability-based metric (requires predict_proba; task-specific constraints apply)
                   {% elif k in ['accuracy','balanced_accuracy','f1','precision','recall'] %}
                     Label-based classification metric
                   {% elif k in ['rmse','mae','r2','mape_percent','smape_percent'] %}
-                    Regression metric
+                    Regression performance metric
                   {% else %}
                     —
                   {% endif %}
@@ -94,23 +101,28 @@
 
         <div class="hr"></div>
 
-        <p class="h2">What’s next</p>
-        <p class="note">
-          <strong>Phase 2:</strong> Noise Injection Stress Test (metric vs noise curve + degradation).<br>
-          <strong>Phase 3:</strong> Feature Drop Sensitivity (critical feature dependence).<br>
-          <strong>Phase 4:</strong> Missingness Shock (tolerance thresholds).<br>
-          <strong>Phase 5:</strong> Covariate Shift (distribution drift simulation).
-        </p>
+        <!-- NEXT PHASES -->
+        <p class="h2">Next Phases</p>
+        <ul class="note">
+          <li><strong>Phase 2:</strong> Noise Injection Stress Test — metric degradation curves & breakpoint detection.</li>
+          <li><strong>Phase 3:</strong> Feature Drop Sensitivity — dependency and fragility analysis.</li>
+          <li><strong>Phase 4:</strong> Missingness Shock — tolerance threshold evaluation.</li>
+          <li><strong>Phase 5:</strong> Covariate Shift Simulation — distribution drift resilience testing.</li>
+        </ul>
 
         <div class="hr"></div>
-        <a class="btn" href="/" style="display:inline-block; text-align:center;">Run Another Dataset</a>
+
+        <a class="btn" href="/" style="display:inline-block; text-align:center;">
+          Run Another Dataset
+        </a>
 
       </div>
     </div>
 
+    <!-- FOOTER -->
     <div class="footer">
-      <div>Baseline engine · Task-aware metrics registry · Safe metric computation</div>
-      <div>Next deliverable: Phase 2 noise stress + degradation curve outputs</div>
+      <div>Baseline Engine · Task-Aware Metric Registry · Safe Computation Layer</div>
+      <div>Next Milestone: Stability Curves · Breakpoint Detection · Robustness Index</div>
     </div>
 
   </div>
