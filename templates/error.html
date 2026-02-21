@@ -9,6 +9,7 @@
 <body>
   <div class="container">
 
+    <!-- TOPBAR -->
     <div class="topbar">
       <div class="brand">
         <div class="badge">RT</div>
@@ -18,32 +19,38 @@
         </div>
       </div>
 
-      <!-- Theme toggle (NEW) -->
-      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
+      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme">
         🌙
       </button>
     </div>
 
+    <!-- ERROR CARD -->
     <div class="card">
       <div class="card-inner">
         <div class="error-wrap">
 
           <div class="error-code">{{ code }}</div>
 
-          <p class="h2" style="margin-top:10px;">{{ message }}</p>
+          <p class="h2" style="margin-top:10px;">
+            {{ message }}
+          </p>
 
           {% if hint %}
             <p class="sub">{{ hint }}</p>
           {% endif %}
 
           {% if path %}
-            <div class="note">Path: <span class="mono">{{ path }}</span></div>
+            <div class="note">
+              Path: <span class="mono">{{ path }}</span>
+            </div>
           {% endif %}
 
           {% if details %}
             <div class="hr"></div>
             <p class="note"><strong>Debug details (only in debug mode):</strong></p>
-            <pre class="error-details">{{ details }}</pre>
+            <pre class="error-details" style="max-height:300px; overflow:auto;">
+{{ details }}
+            </pre>
           {% endif %}
 
           <div class="hr"></div>
@@ -58,14 +65,15 @@
       </div>
     </div>
 
+    <!-- FOOTER -->
     <div class="footer">
-      <div>Robustness-first UI · Errors shown in-theme</div>
-      <div>Tip: verify dataset + target column</div>
+      <div>Robustness-first UI · Structured error handling</div>
+      <div>Tip: verify dataset format & target column</div>
     </div>
 
   </div>
 
-  <!-- Theme toggle script (NEW) -->
+  <!-- Theme Toggle Script -->
   <script>
     (function () {
       const html = document.documentElement;
@@ -73,24 +81,25 @@
 
       function applyTheme(theme) {
         html.setAttribute("data-theme", theme);
-        btn.textContent = (theme === "dark") ? "☀️" : "🌙";
+        btn.textContent = theme === "dark" ? "☀️" : "🌙";
         btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
-        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
       }
 
       const saved = localStorage.getItem("theme");
-      const systemPrefersDark =
-        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+      applyTheme(saved || (prefersDark ? "dark" : "light"));
 
       btn.addEventListener("click", () => {
         const current = html.getAttribute("data-theme") || "light";
-        const next = (current === "dark") ? "light" : "dark";
+        const next = current === "dark" ? "light" : "dark";
         localStorage.setItem("theme", next);
         applyTheme(next);
       });
     })();
   </script>
+
 </body>
 </html>

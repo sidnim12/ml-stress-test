@@ -5,20 +5,171 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Baseline Report</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <!-- Minimal inline polish so this looks top-tier even without extra CSS changes -->
+  <style>
+    /* ---- micro polish + first-impression layout helpers ---- */
+    .topbar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px); }
+    .subnav { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+    .chip {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      text-decoration:none;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .hero-wrap { display:grid; gap:14px; margin-top:14px; }
+    .hero-strip {
+      display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap;
+      padding:14px 16px; border-radius:16px; border:1px solid var(--border);
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      box-shadow: var(--shadow);
+    }
+    .hero-left { min-width: 280px; }
+    .hero-title { font-size: 16px; font-weight: 700; margin: 0; }
+    .hero-sub { margin: 6px 0 0; color: var(--muted); }
+    .hero-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+    .status-pill {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px; font-weight: 650;
+      border:1px solid var(--border); background: var(--panel2);
+    }
+    .dot { width:10px; height:10px; border-radius:50%; background: rgba(148,163,184,.7); }
+    .dot.ok { background: rgba(34,197,94,.85); }
+    .dot.warn { background: rgba(245,158,11,.9); }
+    .dot.err { background: rgba(244,63,94,.9); }
+
+    .kpi-grid {
+      display:grid; gap:12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kcard {
+      padding:14px 14px; border-radius:16px;
+      border:1px solid var(--border);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      transition: transform .15s ease;
+    }
+    .kcard:hover { transform: translateY(-1px); }
+    .klabel { margin:0; color: var(--muted); font-size: 12px; letter-spacing:.2px; }
+    .kvalue { margin:6px 0 0; font-size: 20px; font-weight: 800; }
+    .khint { margin:6px 0 0; color: var(--muted2); font-size: 12px; }
+
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .h2 { margin: 0; }
+    .tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .mini-btn {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:12px;
+      border:1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      cursor:pointer;
+      transition: transform .15s ease;
+      user-select:none;
+      text-decoration:none;
+    }
+    .mini-btn:hover { transform: translateY(-1px); }
+    .mini-btn:active { transform: translateY(0px); }
+
+    details.fold { border:1px solid var(--border); border-radius:16px; background: var(--panel); }
+    details.fold > summary {
+      list-style:none; cursor:pointer; padding:12px 14px; font-weight: 750;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    details.fold > summary::-webkit-details-marker { display:none; }
+    details.fold .fold-body { padding: 0 14px 14px; }
+
+    .muted { color: var(--muted); }
+    .muted2 { color: var(--muted2); }
+
+    /* Make "btn" links not underline on hover even if browser default kicks in */
+    a.btn, a.btn:hover, a.btn:focus { text-decoration: none !important; }
+
+    /* Nice “table caption” style */
+    .table-cap { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 0 0 10px; color: var(--muted); }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+           font-size: 12px; padding: 2px 8px; border-radius: 999px; border:1px solid var(--border); background: var(--panel2); }
+  </style>
 </head>
+
 <body>
   <div class="container">
 
+    {# ---------------------------
+      Formatting helpers (THE KEY to replace NaN with "-")
+    ---------------------------- #}
+    {% macro dash(v, decimals=4) -%}
+      {# Handle None #}
+      {% if v is none %}
+        -
+      {# Handle float NaN via "v != v" trick #}
+      {% elif v != v %}
+        -
+      {# Handle string "nan"/"NaN"/"None" #}
+      {% elif v is string and (v|lower in ["nan", "none", "null"]) %}
+        -
+      {% else %}
+        {% if v is number %}
+          {{ ("%0." ~ decimals ~ "f")|format(v) }}
+        {% else %}
+          {{ v }}
+        {% endif %}
+      {% endif %}
+    {%- endmacro %}
+
+    {% macro simple(v) -%}
+      {% if v is none or v != v %}
+        -
+      {% elif v is string and (v|lower in ["nan", "none", "null"]) %}
+        -
+      {% else %}
+        {{ v }}
+      {% endif %}
+    {%- endmacro %}
+
+    {# ---------------------------
+      Figure out a "primary" metric to spotlight (first impression)
+    ---------------------------- #}
+    {% set primary_label = "Primary Metric" %}
+    {% set primary_value = none %}
+    {% set secondary_label = "Secondary Metric" %}
+    {% set secondary_value = none %}
+
+    {% if results.task == "classification" %}
+      {% set primary_label = "Accuracy" %}
+      {% set primary_value = results.baseline.get("accuracy") if results.baseline else none %}
+      {% set secondary_label = "F1 (weighted)" %}
+      {% set secondary_value = results.baseline.get("f1") if results.baseline else none %}
+    {% else %}
+      {% set primary_label = "RMSE" %}
+      {% set primary_value = results.baseline.get("rmse") if results.baseline else none %}
+      {% set secondary_label = "R²" %}
+      {% set secondary_value = results.baseline.get("r2") if results.baseline else none %}
+    {% endif %}
+
+    <!-- TOPBAR -->
     <div class="topbar">
       <div class="brand">
         <div class="badge">RT</div>
         <div>
           <h1>Baseline Evaluation Report</h1>
-          <p>Task-aware performance metrics · Foundation for robustness testing</p>
+          <p>Task-aware metrics · Robustness diagnostics · Clean, audit-friendly reporting</p>
+
+          <div class="subnav">
+            <a class="chip" href="#baseline">📌 Baseline</a>
+            <a class="chip" href="#stress">🧪 Stress</a>
+            <a class="chip" href="#preview">🔎 Preview</a>
+          </div>
         </div>
       </div>
 
-      <!-- Theme toggle (NEW) -->
       <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
         🌙
       </button>
@@ -26,112 +177,305 @@
       <div class="pill">Task: {{ results.task }}</div>
     </div>
 
+    <!-- HERO STRIP (first impression maker) -->
+    <div class="hero-wrap">
+      <div class="hero-strip">
+        <div class="hero-left">
+          <p class="hero-title">Model Snapshot — Ready for Review</p>
+          <p class="hero-sub">
+            Clean metrics, no noisy NaN labels, and stress results summarized for fast decision-making.
+          </p>
+        </div>
+
+        <div class="hero-right">
+          {% if results.run_stress %}
+            {% if results.stress_warning %}
+              <span class="status-pill"><span class="dot warn"></span>Stress: Warning</span>
+            {% else %}
+              <span class="status-pill"><span class="dot ok"></span>Stress: Enabled</span>
+            {% endif %}
+          {% else %}
+            <span class="status-pill"><span class="dot"></span>Stress: Off</span>
+          {% endif %}
+
+          <span class="status-pill">
+            <span class="dot ok"></span>
+            Report: Generated
+          </span>
+
+          <a class="mini-btn" href="/" title="Run another dataset">↩ Run Another</a>
+        </div>
+      </div>
+
+      <!-- KPI CARDS -->
+      <div class="kpi-grid">
+        <div class="kcard">
+          <p class="klabel">Rows</p>
+          <p class="kvalue">{{ simple(results.rows) }}</p>
+          <p class="khint">Dataset size</p>
+        </div>
+
+        <div class="kcard">
+          <p class="klabel">Columns</p>
+          <p class="kvalue">{{ simple(results.cols) }}</p>
+          <p class="khint">Total features + target</p>
+        </div>
+
+        <div class="kcard">
+          <p class="klabel">Target</p>
+          <p class="kvalue" style="font-size:16px; font-weight:800; margin-top:8px;">
+            {{ simple(results.target) }}
+          </p>
+          <p class="khint">Used to train baseline model</p>
+        </div>
+
+        <div class="kcard">
+          <p class="klabel">{{ primary_label }}</p>
+          <p class="kvalue">{{ dash(primary_value, 4) }}</p>
+          <p class="khint">{{ secondary_label }}: <strong>{{ dash(secondary_value, 4) }}</strong></p>
+        </div>
+      </div>
+
+      {% if results.dropped_target_nan_rows and results.dropped_target_nan_rows > 0 %}
+        <div class="alert warn">
+          Dropped <strong>{{ results.dropped_target_nan_rows }}</strong> row(s) due to missing target values.
+          Target values are never imputed.
+        </div>
+      {% endif %}
+    </div>
+
     <div class="card">
       <div class="card-inner">
 
-        <!-- KPI SECTION -->
-        <div class="kpis">
-          <div class="kpi">
-            <p class="k">Rows</p>
-            <p class="v">{{ results.rows }}</p>
-          </div>
-          <div class="kpi">
-            <p class="k">Columns</p>
-            <p class="v">{{ results.cols }}</p>
-          </div>
-          <div class="kpi">
-            <p class="k">Target</p>
-            <p class="v">{{ results.target }}</p>
+        <!-- BASELINE -->
+        <div id="baseline" class="section-head">
+          <p class="h2">Baseline Metrics</p>
+          <div class="tools">
+            <span class="muted2">Tip:</span> <span class="kbd">Copy Table</span>
+            <button class="mini-btn" type="button" onclick="copyTable('baselineTable')">📋 Copy</button>
           </div>
         </div>
 
-        {% if results.dropped_target_nan_rows and results.dropped_target_nan_rows > 0 %}
-          <div class="hr"></div>
-          <p class="note">
-            <strong>Data integrity note:</strong>
-            Dropped <strong>{{ results.dropped_target_nan_rows }}</strong> rows due to missing target values.
-            Target values are never imputed to preserve evaluation correctness.
-          </p>
-        {% endif %}
-
-        <div class="hr"></div>
-
-        <!-- BASELINE METRICS -->
-        <p class="h2">Baseline Metrics</p>
-        <p class="sub">
-          These metrics define the model’s reference performance under clean data conditions.
-          All future stress experiments will track the same metrics to measure
-          stability, degradation rate, and structural breakpoints.
+        <p class="table-cap">
+          <span>Metrics shown are task-aware. Missing / undefined values are displayed as <strong>-</strong>.</span>
+          <span class="muted2">Cleaner than “NaN” → avoids confusion with imputation.</span>
         </p>
 
-        <table class="table">
+        <table class="table" id="baselineTable">
           <thead>
             <tr>
               <th>Metric</th>
               <th>Value</th>
-              <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             {% for k, v in results.baseline.items() %}
-              <tr>
-                <td><code class="metric-key">{{ k }}</code></td>
-                <td>
-                  {% if v is none %}
-                    N/A
-                  {% else %}
-                    {% if v != v %}
-                      NaN
-                    {% else %}
-                      {{ v }}
-                    {% endif %}
-                  {% endif %}
-                </td>
-                <td class="metric-notes">
-                  {% if k in ['roc_auc','pr_auc','log_loss'] %}
-                    Probability-based metric (requires predict_proba; task-specific constraints apply)
-                  {% elif k in ['accuracy','balanced_accuracy','f1','precision','recall'] %}
-                    Label-based classification metric
-                  {% elif k in ['rmse','mae','r2','mape_percent','smape_percent'] %}
-                    Regression performance metric
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
+            <tr>
+              <td><code>{{ k }}</code></td>
+              <td>{{ dash(v, 4) }}</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
 
         <div class="hr"></div>
 
-        <!-- NEXT PHASES -->
-        <p class="h2">Next Phases</p>
-        <ul class="note">
-          <li><strong>Phase 2:</strong> Noise Injection Stress Test — metric degradation curves & breakpoint detection.</li>
-          <li><strong>Phase 3:</strong> Feature Drop Sensitivity — dependency and fragility analysis.</li>
-          <li><strong>Phase 4:</strong> Missingness Shock — tolerance threshold evaluation.</li>
-          <li><strong>Phase 5:</strong> Covariate Shift Simulation — distribution drift resilience testing.</li>
-        </ul>
+        <!-- STRESS -->
+        <div id="stress" class="section-head">
+          <p class="h2">Phase 2 — Noise Stress Test</p>
+          <div class="tools">
+            <button class="mini-btn" type="button" onclick="copyTable('noiseTable')">📋 Copy</button>
+            <a class="mini-btn" href="#top" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">⬆ Top</a>
+          </div>
+        </div>
+
+        {% if results.run_stress %}
+
+          {% if results.stress_warning %}
+            <div class="alert warn">{{ results.stress_warning }}</div>
+          {% endif %}
+
+          {% set stress_root = results.stress %}
+          {% set noise_block = none %}
+
+          {% if stress_root %}
+            {% if stress_root.get("results") and stress_root.get("results").get("noise") %}
+              {% set noise_block = stress_root.get("results").get("noise") %}
+            {% elif stress_root.get("noise") %}
+              {% set noise_block = stress_root.get("noise") %}
+            {% endif %}
+          {% endif %}
+
+          {% if noise_block %}
+            {% set st = noise_block.status %}
+            {% set dur = noise_block.duration_s | default(0) %}
+
+            <div class="hero-strip" style="margin-top:12px;">
+              <div class="hero-left">
+                <p class="hero-title">Stress Summary</p>
+                <p class="hero-sub">
+                  Status: <strong>{{ simple(st) }}</strong>
+                  &nbsp;•&nbsp;
+                  Duration: <strong>{{ dash(dur, 4) }}</strong> sec
+                </p>
+              </div>
+
+              <div class="hero-right">
+                {% if st == "ok" %}
+                  <span class="status-pill"><span class="dot ok"></span>Completed</span>
+                {% elif st == "error" %}
+                  <span class="status-pill"><span class="dot err"></span>Failed</span>
+                {% else %}
+                  <span class="status-pill"><span class="dot warn"></span>{{ simple(st) }}</span>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if st == "ok" %}
+              {% set rows = noise_block.output.summary_records %}
+              {% if rows and rows|length > 0 %}
+
+                <details class="fold" open style="margin-top:12px;">
+                  <summary>
+                    Noise curve results (table)
+                    <span class="muted2">click to collapse</span>
+                  </summary>
+                  <div class="fold-body">
+
+                    <table class="table" id="noiseTable">
+                      <thead>
+                        <tr>
+                          <th>Noise Level</th>
+
+                          {% if results.task == "classification" %}
+                            <th>Accuracy</th>
+                            <th>F1</th>
+                            <th>Balanced Accuracy</th>
+                            <th>ROC-AUC</th>
+                          {% else %}
+                            <th>RMSE</th>
+                            <th>MAE</th>
+                            <th>R²</th>
+                            <th>MAPE %</th>
+                          {% endif %}
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {% for r in rows %}
+                          <tr>
+                            <td>{{ dash(r.noise_level, 4) }}</td>
+
+                            {% if results.task == "classification" %}
+                              <td>{{ dash(r["metrics.accuracy"], 4) }}</td>
+                              <td>{{ dash(r["metrics.f1"], 4) }}</td>
+                              <td>{{ dash(r["metrics.balanced_accuracy"], 4) }}</td>
+                              <td>{{ dash(r["metrics.roc_auc"], 4) }}</td>
+                            {% else %}
+                              <td>{{ dash(r["metrics.rmse"], 4) }}</td>
+                              <td>{{ dash(r["metrics.mae"], 4) }}</td>
+                              <td>{{ dash(r["metrics.r2"], 4) }}</td>
+                              <td>{{ dash(r["metrics.mape_percent"], 2) }}</td>
+                            {% endif %}
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+
+                  </div>
+                </details>
+
+                <p class="note" style="margin-top:10px;">
+                  Interpretation hint: look for the noise level where the primary metric drops sharply.
+                  That’s your “robustness breakpoint”.
+                </p>
+
+              {% else %}
+                <div class="alert warn">Noise test ran but no rows were produced.</div>
+              {% endif %}
+
+            {% elif st == "error" %}
+              <div class="alert" style="border-color: rgba(244,63,94,.35);">
+                <strong style="color:#fb7185;">Noise test failed.</strong>
+                <div class="muted" style="margin-top:6px;">
+                  {{ simple(noise_block.error) }}
+                </div>
+              </div>
+            {% else %}
+              <div class="alert warn">Noise test status: {{ simple(st) }}</div>
+            {% endif %}
+
+          {% else %}
+            <div class="alert warn">No noise block returned from stress suite.</div>
+          {% endif %}
+
+        {% else %}
+          <div class="alert warn">
+            Stress tests were not run (baseline only).
+          </div>
+        {% endif %}
 
         <div class="hr"></div>
 
-        <a class="btn" href="/" style="display:inline-block; text-align:center;">
+        <!-- DATA PREVIEW (clean, optional, collapsible) -->
+        <div id="preview" class="section-head">
+          <p class="h2">Dataset Preview</p>
+          <div class="tools">
+            <span class="muted2">Keeps the report audit-friendly</span>
+          </div>
+        </div>
+
+        <details class="fold" style="margin-top:12px;">
+          <summary>
+            Show / hide preview (first 25 rows)
+            <span class="muted2">click to expand</span>
+          </summary>
+          <div class="fold-body">
+
+            {% if results.preview_rows and results.preview_rows|length > 0 %}
+              <table class="table">
+                <thead>
+                  <tr>
+                    {% for col in results.preview_cols %}
+                      <th>{{ col }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in results.preview_rows[:25] %}
+                    <tr>
+                      {% for col in results.preview_cols %}
+                        <td>{{ dash(row.get(col), 4) }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              <p class="note">Preview values use the same “- instead of NaN” standard.</p>
+            {% else %}
+              <p class="note">No preview rows available.</p>
+            {% endif %}
+
+          </div>
+        </details>
+
+        <div class="hr"></div>
+
+        <a class="btn" href="/" style="display:inline-block;">
           Run Another Dataset
         </a>
 
       </div>
     </div>
 
-    <!-- FOOTER -->
     <div class="footer">
-      <div>Baseline Engine · Task-Aware Metric Registry · Safe Computation Layer</div>
-      <div>Next Milestone: Stability Curves · Breakpoint Detection · Robustness Index</div>
+      <div>Baseline Engine · Stress Suite · Degradation Diagnostics</div>
+      <div>Next: Missingness Shock · Feature Sensitivity · Shift Simulation</div>
     </div>
 
   </div>
 
-  <!-- Theme toggle script (NEW) -->
+  <!-- Theme toggle -->
   <script>
     (function () {
       const html = document.documentElement;
@@ -139,24 +483,47 @@
 
       function applyTheme(theme) {
         html.setAttribute("data-theme", theme);
-        btn.textContent = (theme === "dark") ? "☀️" : "🌙";
-        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
-        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
+        btn.textContent = theme === "dark" ? "☀️" : "🌙";
       }
 
       const saved = localStorage.getItem("theme");
-      const systemPrefersDark =
-        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+      applyTheme(saved || (prefersDark ? "dark" : "light"));
 
       btn.addEventListener("click", () => {
         const current = html.getAttribute("data-theme") || "light";
-        const next = (current === "dark") ? "light" : "dark";
+        const next = current === "dark" ? "light" : "dark";
         localStorage.setItem("theme", next);
         applyTheme(next);
       });
     })();
   </script>
+
+  <!-- Copy table to clipboard (professional “tool” feel) -->
+  <script>
+    function copyTable(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+
+      let text = "";
+      const rows = table.querySelectorAll("tr");
+      rows.forEach((row) => {
+        const cols = row.querySelectorAll("th, td");
+        const line = Array.from(cols).map(c => c.innerText.trim()).join("\t");
+        text += line + "\n";
+      });
+
+      navigator.clipboard.writeText(text).then(() => {
+        // Lightweight feedback without extra UI dependencies
+        alert("Copied to clipboard ✅");
+      }).catch(() => {
+        alert("Copy failed. Try selecting manually.");
+      });
+    }
+  </script>
+
 </body>
 </html>

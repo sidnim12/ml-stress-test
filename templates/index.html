@@ -20,8 +20,7 @@
         </div>
       </div>
 
-      <!-- Theme toggle (NEW) -->
-      <button id="themeToggle" class="theme-btn" type="button" aria-label="Toggle theme" title="Toggle theme">
+      <button id="themeToggle" class="theme-btn" type="button">
         🌙
       </button>
 
@@ -43,18 +42,18 @@
     <div class="card">
       <div class="card-inner">
 
-        <div class="grid">
+        <!-- IMPORTANT: form wraps BOTH columns -->
+        <form class="form" method="POST" enctype="multipart/form-data">
 
-          <!-- LEFT SIDE -->
-          <div>
-            <p class="h2">Upload Dataset</p>
-            <p class="sub">
-              This tool evaluates baseline performance and stress-tests model
-              stability under controlled perturbations
-              (noise, missingness, shift, feature drop, class imbalance).
-            </p>
+          <div class="grid">
 
-            <form class="form" method="POST" enctype="multipart/form-data">
+            <!-- LEFT SIDE -->
+            <div>
+              <p class="h2">Upload Dataset</p>
+              <p class="sub">
+                This tool evaluates baseline performance and optionally stress-tests model
+                stability under controlled perturbations.
+              </p>
 
               <div>
                 <div class="label">CSV Dataset</div>
@@ -80,63 +79,64 @@
                 </div>
               </div>
 
+              <div class="hr"></div>
+
               <button class="btn" type="submit">
-                Run Baseline Evaluation
+                Run Evaluation
               </button>
+
+            </div>
+
+            <!-- RIGHT SIDE -->
+            <div>
+              <p class="h2">Evaluation Options</p>
+              <p class="sub">
+                Choose whether to run stress diagnostics in addition to baseline evaluation.
+              </p>
 
               <div class="hr"></div>
 
-              <div class="note">
-                <strong>What happens next?</strong><br>
-                The system detects task type automatically and prepares
-                stress-testing diagnostics.
+              <!-- CHECKBOX MOVED HERE -->
+              <label class="check-row check-large">
+                <input type="checkbox" name="run_stress" value="1">
+                <span>
+                  <strong>Run Phase 2 Stress Tests</strong><br>
+                  <span class="note">
+                    Runs noise robustness diagnostics on the evaluation split.
+                  </span>
+                </span>
+              </label>
+
+              <div class="hr"></div>
+
+              <div class="kpis">
+                <div class="kpi">
+                  <p class="k">Goal</p>
+                  <p class="v">Stability</p>
+                </div>
+                <div class="kpi">
+                  <p class="k">Output</p>
+                  <p class="v">Report</p>
+                </div>
+                <div class="kpi">
+                  <p class="k">Method</p>
+                  <p class="v">Stress</p>
+                </div>
               </div>
 
-            </form>
-          </div>
+              <div class="hr"></div>
 
-          <!-- RIGHT SIDE -->
-          <div>
-            <p class="h2">What this tool measures</p>
-            <p class="sub">
-              Think of this as a reliability test for ML models.
-              Accuracy alone is not enough.
-            </p>
+              <div class="tag"><span class="dot good"></span> Graceful degradation</div>
+              <div style="height:8px"></div>
+              <div class="tag"><span class="dot warn"></span> Detect breakpoints</div>
+              <div style="height:8px"></div>
+              <div class="tag"><span class="dot bad"></span> Reveal fragility</div>
 
-            <div class="kpis">
-              <div class="kpi">
-                <p class="k">Goal</p>
-                <p class="v">Stability</p>
-              </div>
-              <div class="kpi">
-                <p class="k">Output</p>
-                <p class="v">Report</p>
-              </div>
-              <div class="kpi">
-                <p class="k">Method</p>
-                <p class="v">Stress</p>
-              </div>
-            </div>
-
-            <div class="hr"></div>
-
-            <div class="tag"><span class="dot good"></span> Graceful degradation</div>
-            <div style="height:8px"></div>
-            <div class="tag"><span class="dot warn"></span> Detect breakpoints</div>
-            <div style="height:8px"></div>
-            <div class="tag"><span class="dot bad"></span> Reveal fragility</div>
-
-            <div class="right-note">
-              <div class="right-note-title">What you get</div>
-              <div class="right-note-body">
-                A baseline score plus stress curves that show how performance
-                degrades under noise, missingness, and shift.
-              </div>
             </div>
 
           </div>
 
-        </div>
+        </form>
 
         <div class="hr"></div>
 
@@ -157,7 +157,7 @@
 
   </div>
 
-  <!-- Theme toggle script (NEW) -->
+  <!-- Theme toggle script -->
   <script>
     (function () {
       const html = document.documentElement;
@@ -166,23 +166,23 @@
       function applyTheme(theme) {
         html.setAttribute("data-theme", theme);
         btn.textContent = (theme === "dark") ? "☀️" : "🌙";
-        btn.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
-        btn.setAttribute("title", theme === "dark" ? "Light theme" : "Dark theme");
       }
 
       const saved = localStorage.getItem("theme");
-      const systemPrefersDark =
-        window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const prefersDark =
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-      applyTheme(saved || (systemPrefersDark ? "dark" : "light"));
+      applyTheme(saved || (prefersDark ? "dark" : "light"));
 
       btn.addEventListener("click", () => {
         const current = html.getAttribute("data-theme") || "light";
-        const next = (current === "dark") ? "light" : "dark";
+        const next = current === "dark" ? "light" : "dark";
         localStorage.setItem("theme", next);
         applyTheme(next);
       });
     })();
   </script>
+
 </body>
 </html>
