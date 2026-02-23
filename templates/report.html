@@ -1,3 +1,4 @@
+<!-- templates/report.html (FULL FILE WITH PHASE 3 DIAGNOSTIC RENDERING) -->
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -6,11 +7,20 @@
   <title>Baseline Report</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
-  <!-- Minimal inline polish so this looks top-tier even without extra CSS changes -->
   <style>
-    /* ---- micro polish + first-impression layout helpers ---- */
     .topbar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px); }
     .subnav { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+
+    /* ✅ GLOBAL: remove link underlines for “button-like” anchors in ALL states */
+    .subnav a,
+    a.chip, a.mini-btn, a.btn,
+    a.chip:link, a.chip:visited, a.chip:hover, a.chip:active, a.chip:focus,
+    a.mini-btn:link, a.mini-btn:visited, a.mini-btn:hover, a.mini-btn:active, a.mini-btn:focus,
+    a.btn:link, a.btn:visited, a.btn:hover, a.btn:active, a.btn:focus {
+      text-decoration: none !important;
+      -webkit-text-decoration: none !important;
+    }
+
     .chip {
       display:inline-flex; align-items:center; gap:8px;
       padding:8px 12px; border-radius:999px;
@@ -21,6 +31,7 @@
       transition: transform .15s ease, box-shadow .15s ease;
     }
     .chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
     .hero-wrap { display:grid; gap:14px; margin-top:14px; }
     .hero-strip {
       display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap;
@@ -89,10 +100,9 @@
     .muted { color: var(--muted); }
     .muted2 { color: var(--muted2); }
 
-    /* Make "btn" links not underline on hover even if browser default kicks in */
+    /* (kept) but now redundant because we handled all states above */
     a.btn, a.btn:hover, a.btn:focus { text-decoration: none !important; }
 
-    /* Nice “table caption” style */
     .table-cap { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 0 0 10px; color: var(--muted); }
     .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
            font-size: 12px; padding: 2px 8px; border-radius: 999px; border:1px solid var(--border); background: var(--panel2); }
@@ -102,17 +112,11 @@
 <body>
   <div class="container">
 
-    {# ---------------------------
-      Formatting helpers (THE KEY to replace NaN with "-")
-    ---------------------------- #}
     {% macro dash(v, decimals=4) -%}
-      {# Handle None #}
       {% if v is none %}
         -
-      {# Handle float NaN via "v != v" trick #}
       {% elif v != v %}
         -
-      {# Handle string "nan"/"NaN"/"None" #}
       {% elif v is string and (v|lower in ["nan", "none", "null"]) %}
         -
       {% else %}
@@ -134,9 +138,6 @@
       {% endif %}
     {%- endmacro %}
 
-    {# ---------------------------
-      Figure out a "primary" metric to spotlight (first impression)
-    ---------------------------- #}
     {% set primary_label = "Primary Metric" %}
     {% set primary_value = none %}
     {% set secondary_label = "Secondary Metric" %}
@@ -154,8 +155,7 @@
       {% set secondary_value = results.baseline.get("r2") if results.baseline else none %}
     {% endif %}
 
-    <!-- TOPBAR -->
-    <div class="topbar">
+    <div class="topbar" id="top">
       <div class="brand">
         <div class="badge">RT</div>
         <div>
@@ -165,6 +165,7 @@
           <div class="subnav">
             <a class="chip" href="#baseline">📌 Baseline</a>
             <a class="chip" href="#stress">🧪 Stress</a>
+            <a class="chip" href="#featuredrop">🧩 Feature Drop</a>
             <a class="chip" href="#preview">🔎 Preview</a>
           </div>
         </div>
@@ -177,7 +178,6 @@
       <div class="pill">Task: {{ results.task }}</div>
     </div>
 
-    <!-- HERO STRIP (first impression maker) -->
     <div class="hero-wrap">
       <div class="hero-strip">
         <div class="hero-left">
@@ -207,7 +207,6 @@
         </div>
       </div>
 
-      <!-- KPI CARDS -->
       <div class="kpi-grid">
         <div class="kcard">
           <p class="klabel">Rows</p>
@@ -247,7 +246,6 @@
     <div class="card">
       <div class="card-inner">
 
-        <!-- BASELINE -->
         <div id="baseline" class="section-head">
           <p class="h2">Baseline Metrics</p>
           <div class="tools">
@@ -280,7 +278,6 @@
 
         <div class="hr"></div>
 
-        <!-- STRESS -->
         <div id="stress" class="section-head">
           <p class="h2">Phase 2 — Noise Stress Test</p>
           <div class="tools">
@@ -298,12 +295,8 @@
           {% set stress_root = results.stress %}
           {% set noise_block = none %}
 
-          {% if stress_root %}
-            {% if stress_root.get("results") and stress_root.get("results").get("noise") %}
-              {% set noise_block = stress_root.get("results").get("noise") %}
-            {% elif stress_root.get("noise") %}
-              {% set noise_block = stress_root.get("noise") %}
-            {% endif %}
+          {% if stress_root and stress_root.get("results") and stress_root.get("results").get("noise") %}
+            {% set noise_block = stress_root.get("results").get("noise") %}
           {% endif %}
 
           {% if noise_block %}
@@ -410,14 +403,109 @@
           {% endif %}
 
         {% else %}
-          <div class="alert warn">
-            Stress tests were not run (baseline only).
-          </div>
+          <div class="alert warn">Stress tests were not run (baseline only).</div>
         {% endif %}
 
         <div class="hr"></div>
 
-        <!-- DATA PREVIEW (clean, optional, collapsible) -->
+        <!-- ========================= -->
+        <!-- PHASE 3 — FEATURE DROP -->
+        <!-- ========================= -->
+        <div id="featuredrop" class="section-head" style="margin-top:18px;">
+          <p class="h2">Phase 3 — Feature Drop Sensitivity</p>
+          <div class="tools">
+            <button class="mini-btn" type="button" onclick="copyTable('featureDropTable')">📋 Copy</button>
+          </div>
+        </div>
+
+        {% set fd_block = none %}
+        {% if results.run_stress and results.stress and results.stress.get("results") %}
+          {% set fd_block = results.stress.get("results").get("feature_drop") %}
+        {% endif %}
+
+        {% if fd_block and fd_block.status == "ok" %}
+          {% set fd = fd_block.output %}
+
+          {% if fd.status is defined and fd.status == "skip" %}
+            <div class="alert warn">
+              Feature Drop skipped: {{ simple(fd.reason) }}
+            </div>
+
+          {% else %}
+
+            <div class="hero-strip" style="margin-top:12px;">
+              <div class="hero-left">
+                <p class="hero-title">Sensitivity Summary</p>
+                <p class="hero-sub">
+                  If dropping a feature causes collapse, the model is fragile and you have data-contract risk.
+                </p>
+              </div>
+              <div class="hero-right">
+                <span class="status-pill"><span class="dot ok"></span>Completed</span>
+              </div>
+            </div>
+
+            {% if fd.ranked and fd.ranked|length > 0 %}
+              <details class="fold" open style="margin-top:12px;">
+                <summary>
+                  Top Sensitive Features
+                  <span class="muted2">click to collapse</span>
+                </summary>
+                <div class="fold-body">
+
+                  <table class="table" id="featureDropTable">
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Feature</th>
+                        <th>After Drop</th>
+                        <th>Impact</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in fd.ranked %}
+                        <tr>
+                          <td>{{ loop.index }}</td>
+                          <td>{{ row.feature }}</td>
+                          <td>{{ dash(row.after_drop_metric, 4) }}</td>
+                          <td>
+                            {% if row.impact > 0 %}
+                              <span style="color:#fb7185;">{{ dash(row.impact, 4) }}</span>
+                            {% else %}
+                              {{ dash(row.impact, 4) }}
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+
+                </div>
+              </details>
+            {% else %}
+              <div class="alert warn">
+                Feature Drop ran but your feature_drop output doesn't contain <code>ranked</code>.
+                Update your <code>run_feature_drop_test()</code> to return:
+                <code>{"ranked": [{"feature":..., "after_drop_metric":..., "impact":...}]}</code>
+              </div>
+            {% endif %}
+
+          {% endif %}
+
+        {% elif fd_block and fd_block.status == "error" %}
+          <div class="alert" style="border-color: rgba(244,63,94,.35);">
+            <strong style="color:#fb7185;">Feature Drop failed.</strong>
+            <div class="muted" style="margin-top:6px;">
+              {{ simple(fd_block.error) }}
+            </div>
+          </div>
+
+        {% else %}
+          <div class="alert warn">Feature Drop test not available.</div>
+        {% endif %}
+
+        <div class="hr"></div>
+
         <div id="preview" class="section-head">
           <p class="h2">Dataset Preview</p>
           <div class="tools">
@@ -461,9 +549,7 @@
 
         <div class="hr"></div>
 
-        <a class="btn" href="/" style="display:inline-block;">
-          Run Another Dataset
-        </a>
+        <a class="btn" href="/" style="display:inline-block;">Run Another Dataset</a>
 
       </div>
     </div>
@@ -475,7 +561,6 @@
 
   </div>
 
-  <!-- Theme toggle -->
   <script>
     (function () {
       const html = document.documentElement;
@@ -502,7 +587,6 @@
     })();
   </script>
 
-  <!-- Copy table to clipboard (professional “tool” feel) -->
   <script>
     function copyTable(tableId) {
       const table = document.getElementById(tableId);
@@ -517,7 +601,6 @@
       });
 
       navigator.clipboard.writeText(text).then(() => {
-        // Lightweight feedback without extra UI dependencies
         alert("Copied to clipboard ✅");
       }).catch(() => {
         alert("Copy failed. Try selecting manually.");

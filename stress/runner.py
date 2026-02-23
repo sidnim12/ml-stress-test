@@ -1,153 +1,83 @@
 # stress/runner.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from time import perf_counter
-from typing import Any, Callable, Dict, Mapping, Optional, TypedDict
+import time
+from typing import Any, Dict, Optional
 
-from stress.tests.noise import NoiseStressConfig, run_noise_stress_test
+import pandas as pd
 
+from stress.schemas import detect_task_type
 
-# -------------------------
-# Output schema (stable contract)
-# -------------------------
-class StressTestResult(TypedDict, total=False):
-    status: str                 # "ok" | "error" | "skipped"
-    duration_s: float
-    error: str
-    output: Dict[str, Any]
+from stress.tests.noise import run_noise_stress_test, NoiseStressConfig
+from stress.tests.feature_drop import run_feature_drop_test
 
 
-class StressSuiteResult(TypedDict):
-    suite: str
-    target_col: str
-    rows: int
-    cols: int
-    results: Dict[str, StressTestResult]
-
-
-# -------------------------
-# Config
-# -------------------------
-@dataclass(frozen=True)
-class StressRunnerConfig:
-    """
-    Controls suite behavior in production.
-    - enabled_tests: choose which tests to run (default: noise only, Phase 2)
-    - fail_fast: stop on first failure (useful in CI)
-    """
-    enabled_tests: tuple[str, ...] = ("noise",)
-    fail_fast: bool = False
-
-
-# -------------------------
-# Internal registry of tests
-# -------------------------
-StressFn = Callable[[Any, Any, str], Dict[str, Any]]
-
-
-def _validate_inputs(model: Any, df: Any, target_col: str) -> None:
-    if model is None:
-        raise ValueError("model must not be None")
-    if df is None:
-        raise ValueError("df must not be None")
-    if not isinstance(target_col, str) or not target_col.strip():
-        raise ValueError("target_col must be a non-empty string")
-
-    # Lightweight, pandas-friendly checks without importing pandas here
-    if not hasattr(df, "columns") or not hasattr(df, "shape"):
-        raise TypeError("df must be a tabular object with .columns and .shape (e.g., pandas.DataFrame)")
-
-    if target_col not in getattr(df, "columns"):
-        raise ValueError(f"target_col='{target_col}' not found in df.columns")
-
-    rows, cols = df.shape
-    if rows == 0 or cols == 0:
-        raise ValueError(f"df must be non-empty, got shape={df.shape}")
+def _safe_block(fn, name: str) -> Dict[str, Any]:
+    t0 = time.time()
+    try:
+        out = fn()
+        return {"status": "ok", "duration_s": round(time.time() - t0, 4), "output": out}
+    except Exception as e:
+        return {"status": "error", "duration_s": round(time.time() - t0, 4), "error": f"{name} failed: {e}"}
 
 
 def run_all_stress_tests(
-    model: Any,
-    df: Any,
-    target_col: str,
     *,
+    model: Any,
+    df: pd.DataFrame,
+    target_col: str,
+    split: Optional[dict] = None,
     noise_config: NoiseStressConfig = NoiseStressConfig(),
-    runner_config: StressRunnerConfig = StressRunnerConfig(),
-    logger: Optional[Any] = None,  # standard logging.Logger compatible
-) -> StressSuiteResult:
-    """
-    Central orchestrator for all stress tests.
+) -> Dict[str, Any]:
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("df must be a pandas DataFrame")
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' not found")
 
-    Phase 2 default:
-      - noise stress
+    task = detect_task_type(df[target_col])
 
-    Designed for future phases:
-      - missingness shock
-      - feature drop
-      - covariate shift
-      - class imbalance shift
+    results: Dict[str, Any] = {}
 
-    Returns a stable, JSON-serializable dict with per-test status + timings.
-    """
-    _validate_inputs(model=model, df=df, target_col=target_col)
-
-    # registry is defined *after* validation so configs are definitely valid
-    registry: Mapping[str, StressFn] = {
-        "noise": lambda m, d, t: run_noise_stress_test(
-            model=m,
-            df=d,
-            target_col=t,
+    # Phase 2 — Noise
+    def _noise():
+        return run_noise_stress_test(
+            model=model,
+            df=df,
+            target_col=target_col,
             config=noise_config,
-        ),
-        # Future:
-        # "missingness": ...
-        # "feature_drop": ...
-        # "covariate_shift": ...
-    }
+        )
 
-    suite_result: StressSuiteResult = {
-        "suite": "stress_suite",
-        "target_col": target_col,
-        "rows": int(df.shape[0]),
-        "cols": int(df.shape[1]),
-        "results": {},
-    }
+    results["noise"] = _safe_block(_noise, "noise")
 
-    enabled = set(runner_config.enabled_tests)
+    # Phase 3 — Feature Drop (leakage-safe if split exists)
+    def _feature_drop():
+        if isinstance(split, dict) and all(k in split for k in ("X_train", "y_train", "X_test", "y_test")):
+            return run_feature_drop_test(
+                model=model,
+                X_train=split["X_train"],
+                y_train=split["y_train"],
+                X_test=split["X_test"],
+                y_test=split["y_test"],
+                top_k=5,
+                seed=42,
+                n_repeats=5,
+            )
 
-    for test_name, fn in registry.items():
-        if test_name not in enabled:
-            suite_result["results"][test_name] = {
-                "status": "skipped",
-                "duration_s": 0.0,
-            }
-            continue
+        # fallback: use df
+        X = df.drop(columns=[target_col])
+        y = df[target_col]
+        if X.shape[1] == 0:
+            return {"status": "skip", "reason": "No feature columns available (only target present)."}
 
-        start = perf_counter()
-        try:
-            if logger:
-                logger.info("Running stress test: %s", test_name)
+        return run_feature_drop_test(
+            model=model,
+            X=X,
+            y=y,
+            top_k=min(5, X.shape[1]),
+            seed=42,
+            n_repeats=5,
+        )
 
-            out = fn(model, df, target_col)
+    results["feature_drop"] = _safe_block(_feature_drop, "feature_drop")
 
-            suite_result["results"][test_name] = {
-                "status": "ok",
-                "duration_s": perf_counter() - start,
-                "output": out,
-            }
-
-        except Exception as e:
-            duration = perf_counter() - start
-            if logger:
-                logger.exception("Stress test failed: %s", test_name)
-
-            suite_result["results"][test_name] = {
-                "status": "error",
-                "duration_s": duration,
-                "error": f"{type(e).__name__}: {e}",
-            }
-
-            if runner_config.fail_fast:
-                break
-
-    return suite_result
+    return {"status": "ok", "task": task, "results": results}

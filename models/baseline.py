@@ -1,3 +1,5 @@
+# models/baseline.py
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -25,20 +27,27 @@ def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
     numeric_cols = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
     categorical_cols = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
 
-    numeric_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-    ])
+    numeric_pipe = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
 
-    cat_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore")),
-    ])
+    cat_pipe = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("encoder", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
 
-    return ColumnTransformer([
-        ("num", numeric_pipe, numeric_cols),
-        ("cat", cat_pipe, categorical_cols),
-    ])
+    return ColumnTransformer(
+        transformers=[
+            ("num", numeric_pipe, numeric_cols),
+            ("cat", cat_pipe, categorical_cols),
+        ],
+        remainder="drop",
+    )
 
 
 def train_and_evaluate_baseline(
@@ -47,26 +56,23 @@ def train_and_evaluate_baseline(
     seed: int = 42,
 ):
     """
-    Trains a baseline model based on detected task type and computes metrics using
-    your extended metrics registry (stress/metrics.py).
-
     Returns:
-      model: fitted sklearn Pipeline
-      results: dict with task, dataset info, and baseline metrics
+      (model, results, split)
+
+    split contains:
+      X_train, y_train, X_test, y_test, test_df
     """
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' not found.")
+
     X = df.drop(columns=[target_col])
     y = df[target_col]
 
     task = detect_task_type(y)
 
-    # Safe stratify for classification only
     stratify = None
     if task == "classification":
-        try:
-            # stratify can fail if a class has too few samples; keep it guarded
-            stratify = y
-        except Exception:
-            stratify = None
+        stratify = y  # may still fail if class counts are tiny; sklearn will raise
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -76,25 +82,27 @@ def train_and_evaluate_baseline(
         stratify=stratify,
     )
 
-    preprocessor = build_preprocessor(X)
+    preprocessor = build_preprocessor(X_train)
 
     if task == "classification":
-        model = Pipeline([
-            ("preprocess", preprocessor),
-            ("model", LogisticRegression(max_iter=1000)),
-        ])
+        model = Pipeline(
+            steps=[
+                ("preprocess", preprocessor),
+                ("model", LogisticRegression(max_iter=1000)),
+            ]
+        )
     else:
-        model = Pipeline([
-            ("preprocess", preprocessor),
-            ("model", Ridge()),
-        ])
+        model = Pipeline(
+            steps=[
+                ("preprocess", preprocessor),
+                ("model", Ridge()),
+            ]
+        )
 
     model.fit(X_train, y_train)
 
-    # Predictions
     y_pred = model.predict(X_test)
 
-    # Probabilities (for roc_auc, pr_auc, log_loss)
     y_proba = None
     if task == "classification" and hasattr(model, "predict_proba"):
         try:
@@ -102,12 +110,10 @@ def train_and_evaluate_baseline(
         except Exception:
             y_proba = None
 
-    # Compute metrics
     if task == "classification":
         metrics = classification_metrics(ClassificationConfig())
         metric_out = compute_metrics(metrics, y_true=y_test, y_pred=y_pred, y_proba=y_proba)
 
-        # curated set for the report
         baseline = {
             "accuracy": metric_out.get("accuracy"),
             "balanced_accuracy": metric_out.get("balanced_accuracy"),
@@ -130,7 +136,6 @@ def train_and_evaluate_baseline(
             "smape_percent": metric_out.get("smape_percent"),
         }
 
-
     def _round_or_nan(v, nd=4):
         try:
             if v is None:
@@ -151,4 +156,12 @@ def train_and_evaluate_baseline(
         "baseline": baseline,
     }
 
-    return model, results
+    split = {
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_test": X_test,
+        "y_test": y_test,
+        "test_df": pd.concat([X_test, y_test.rename(target_col)], axis=1),
+    }
+
+    return model, results, split

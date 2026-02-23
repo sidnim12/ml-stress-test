@@ -71,6 +71,7 @@ def index():
         # checkbox (optional stress)
         run_stress = request.form.get("run_stress") == "1"
 
+        # ---------- Basic form validation ----------
         if not file or file.filename == "":
             return render_template(
                 "error.html",
@@ -155,7 +156,7 @@ def index():
         results["dropped_target_nan_rows"] = int(dropped)
         results["run_stress"] = bool(run_stress)
 
-        # ✅ NEW: Preview for UI (audit-friendly + first impression)
+        # Preview for UI (audit-friendly)
         preview_df = df_clean.head(25).copy()
         results["preview_cols"] = list(preview_df.columns)
         results["preview_rows"] = _df_to_records(preview_df, limit=25)
@@ -171,7 +172,7 @@ def index():
                 test_df = split.get("test_df")
 
             if test_df is None:
-                test_df = df_clean  # safe fallback
+                test_df = df_clean
                 stress_warning = (
                     "Note: No test split provided by baseline. "
                     "Stress ran on full cleaned dataset."
@@ -182,16 +183,16 @@ def index():
                     model=model,
                     df=test_df,
                     target_col=target_col,
+                    split=split,  # ✅ IMPORTANT: enables Phase 3 to use X_train/X_test properly
                 )
             except Exception as e:
-                # Do NOT kill baseline report; show warning
                 stress_warning = f"Stress tests failed: {e}"
                 stress_suite = None
 
         results["stress"] = stress_suite
         results["stress_warning"] = stress_warning
 
-        # ---------- Convert summary_df for UI ----------
+        # ---------- Convert summary_df for UI (Noise table) ----------
         noise_block = _get_noise_block(stress_suite) if stress_suite else None
         if (
             noise_block
@@ -204,8 +205,6 @@ def index():
             if summary_df is not None:
                 noise_output["summary_records"] = _df_to_records(summary_df)
                 noise_output.pop("summary_df", None)
-
-                # ✅ IMPORTANT: ensure the nested dict is updated for the template
                 noise_block["output"] = noise_output
 
         return render_template("report.html", results=results)
