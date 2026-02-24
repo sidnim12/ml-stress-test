@@ -1,20 +1,23 @@
 # ML-Stress-Test
+## A Modular Robustness Evaluation Framework for Machine Learning Systems
 
-A modular robustness evaluation engine for machine learning models.
+Machine learning evaluation traditionally focuses on static performance metrics such as Accuracy, F1-score, RMSE, or R². However, production failures rarely arise from low baseline accuracy — they arise from instability under changing conditions.
 
-Most machine learning workflows focus on performance metrics such as accuracy, F1-score, RMSE, or R². However, real-world systems fail not because of poor baseline accuracy, but because of instability under changing conditions.
+ML-Stress-Test is a structured robustness evaluation framework that measures how models behave under controlled stress scenarios such as noise, missing data, feature dependency shifts, and distribution drift.
 
-ML-Stress-Test evaluates how models behave under controlled stress scenarios such as noise, missing data, feature dependency changes, and distribution drift.
+It shifts evaluation from:
 
-It answers a more important question:
+“How accurate is the model?”
 
-**How gracefully does the model fail?**
+to:
+
+“How stable is the model under real-world stress?”
 
 ---
 
-# Motivation
+# Problem Statement
 
-In production environments:
+In real-world ML systems:
 
 - Sensors become noisy  
 - Upstream pipelines introduce missing values  
@@ -22,50 +25,28 @@ In production environments:
 - Data distributions drift  
 - Class imbalance shifts  
 
-A model that performs well on clean validation data may degrade unpredictably under these conditions.
+Models that perform well on validation data can degrade unpredictably when these conditions change.
 
-This project provides a structured framework to simulate such stress scenarios and measure degradation behavior in a controlled and reproducible way.
+There is limited tooling that systematically evaluates degradation behavior across multiple stress dimensions in a modular and reproducible manner.
 
----
-
-# Key Features
-
-- Modular stress testing architecture
-- Supports both regression and classification tasks
-- Automatic task detection
-- Safe metric computation wrapper
-- Degradation tracking across stress levels
-- Robustness scoring framework
-- Interactive web-based reporting interface
-- Config-driven experiment design
-- Reproducible random seeds
+ML-Stress-Test addresses this gap.
 
 ---
 
-# Web Interface
+# Project Goals
 
-ML-Stress-Test includes a Flask-based web application that provides an interactive evaluation dashboard.
-
-The web interface allows you to:
-
-- Upload datasets
-- Train and evaluate baseline models
-- Run selected stress tests
-- View degradation tables
-- Inspect robustness summaries
-- Review stability classifications
-
-This makes the tool usable not only as a Python module but also as an evaluation dashboard for experimentation and analysis.
-
-Core web components:
-
-- `app.py` – Flask entry point  
-- `templates/` – Structured HTML reports  
-- `static/` – Styling and UI assets  
+- Provide a modular stress-testing framework
+- Support both regression and classification tasks
+- Measure degradation patterns under controlled perturbations
+- Compute interpretable robustness indicators
+- Provide interactive evaluation through a web interface
+- Enable extension with new stress types
 
 ---
 
-# Architecture
+# System Architecture
+
+The system is organized into modular components:
 
 ```
 ML-STRESS-TEST/
@@ -93,41 +74,54 @@ ML-STRESS-TEST/
 └── README.md
 ```
 
-Design principles:
+Key architectural principles:
 
-- Clear separation of concerns
-- Modular stress test implementations
-- Deterministic experiment configuration
-- Extensible architecture for future stress types
-- Task-aware metric handling
+- Separation of concerns
+- Deterministic stress simulation via seed control
+- Safe metric computation wrappers
+- Task-aware evaluation (automatic classification/regression detection)
+- Extensibility for additional stress tests
 
 ---
 
-# Stress Tests Implemented
+# Web Interface
 
-## Baseline Evaluation
+The project includes a Flask-based web application that provides:
 
-- Automatic task detection (regression vs classification)
-- Multi-metric computation
-- Safe metric wrapper
+- Baseline model evaluation
+- Selectable stress test execution
+- Degradation tables and summaries
+- Stability classification
+- Robustness scoring overview
+
+The web layer transforms raw metric degradation into an interpretable evaluation dashboard, making the framework usable beyond CLI experimentation.
+
+---
+
+# Implemented Stress Tests
+
+## Baseline Evaluation Engine
+
+- Automatic task detection
+- Multi-metric support
+- Safe metric registry
 - Target NaN handling
-
-Provides structured baseline performance metrics.
+- Structured reporting
 
 ---
 
 ## Noise Injection Stress Test
 
-Simulates increasing Gaussian noise in numeric features.
+Simulates Gaussian noise scaled by feature standard deviation.
 
 Measures:
 
-- Absolute metric degradation
-- Percentage drop
+- Metric degradation across noise levels
+- Absolute and percentage drop
 - Noise robustness summary
 
 Purpose:
-Evaluate sensitivity to sensor noise or feature instability.
+Evaluate sensitivity to feature instability and sensor noise.
 
 ---
 
@@ -137,18 +131,18 @@ Simulates removal of top-k important features.
 
 Measures:
 
-- Performance before and after drop
+- Performance degradation after feature removal
 - Feature fragility index
 - Sensitivity ranking
 
 Purpose:
-Detect over-reliance on specific features and data contract risks.
+Identify over-reliance on specific features and data contract risks.
 
 ---
 
 ## Missingness Shock Test
 
-Injects controlled levels of missing values.
+Injects controlled missing values (5%, 10%, 20%, 40%).
 
 Measures:
 
@@ -157,28 +151,28 @@ Measures:
 - Stability classification
 
 Purpose:
-Evaluate resilience to upstream data pipeline failures.
+Evaluate resilience to upstream pipeline degradation.
 
 ---
 
 ## Covariate Shift Simulation
 
-Simulates distribution drift using:
+Simulates distribution drift via:
 
 - Feature scaling perturbation
 - Mean shifting
-- Range clipping
+- Range modification
 - Category dropout
 - Category substitution
 
 Measures:
 
 - Degradation percentage
-- Shift Sensitivity Index (AUC-based)
+- Shift Sensitivity Index (area-under-degradation curve)
 - Stability classification (stable / moderate / fragile)
 
 Purpose:
-Evaluate robustness to real-world distribution drift.
+Evaluate robustness to distribution shift — a primary cause of production ML failure.
 
 ---
 
@@ -188,17 +182,17 @@ Evaluate robustness to real-world distribution drift.
 
 - Controlled imbalance alteration
 - Recall degradation tracking
-- Balanced accuracy behavior
+- Balanced accuracy monitoring
 - Metric illusion detection
 
 ## Robustness Scoring Engine
 
 - Normalized degradation aggregation
 - Early-collapse penalty
-- Area-under-degradation scoring
+- Area-under-curve scoring
 - Overall robustness index
 
-## Reporting & Export
+## Reporting & Export Enhancements
 
 - JSON export
 - CSV export
@@ -207,44 +201,43 @@ Evaluate robustness to real-world distribution drift.
 
 ---
 
-# Example Use Cases
+# Engineering Considerations
 
-- Pre-deployment model validation
-- Risk analysis for production ML systems
-- Academic research on model stability
-- Teaching robustness and model evaluation concepts
-- Comparing model architectures under stress
-
----
-
-# Engineering Principles
-
-- Modular and extensible design
-- Reproducible experiments
-- Safe metric computation
-- Task-aware evaluation
-- No premature optimization
-- Transparent degradation tracking
+- Modular stress test design
+- Configurable experiment parameters
+- Reproducible results via fixed seeds
+- Safe handling of metric computation signatures
+- Task-aware evaluation logic
+- No over-engineering; extensible but controlled complexity
 
 ---
 
-# Installation
+# Why This Matters
 
-```bash
-git clone https://github.com/your-username/ml-stress-test.git
-cd ml-stress-test
-pip install -r requirements.txt
-```
+Most ML repositories demonstrate:
+
+- Model training
+- Hyperparameter tuning
+- Validation accuracy
+
+Few demonstrate:
+
+- Structured failure analysis
+- Degradation modeling
+- Robustness quantification
+- Stability classification
+
+ML-Stress-Test formalizes robustness evaluation as a first-class engineering process.
 
 ---
 
 # Running the Web App
 
-```bash
+```
 python app.py
 ```
 
-Open your browser and navigate to:
+Then navigate to:
 
 ```
 http://127.0.0.1:5000
@@ -252,23 +245,8 @@ http://127.0.0.1:5000
 
 ---
 
-# Contribution
-
-Contributions are welcome.
-
-If you would like to:
-
-- Add new stress tests
-- Improve scoring mechanisms
-- Enhance reporting
-- Optimize performance
-
-Please open an issue or submit a pull request.
-
----
-
 # Summary
 
-ML-Stress-Test transforms traditional model evaluation into a structured robustness assessment framework.
+ML-Stress-Test is a modular robustness evaluation framework designed to analyze how machine learning systems behave under stress.
 
-Instead of focusing solely on performance metrics, it measures stability under controlled stress conditions — providing deeper insight into model reliability before deployment.
+It moves evaluation beyond static metrics and provides structured insights into stability, fragility, and degradation behavior — critical for real-world ML deployment.
