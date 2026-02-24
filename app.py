@@ -62,6 +62,210 @@ def _get_noise_block(stress_suite: dict):
     return None
 
 
+def _get_missingness_block(stress_suite: dict):
+    """
+    Support both stress_suite schemas:
+      A) {"results": {"missingness": {...}}}
+      B) {"missingness": {...}}
+    """
+    if not isinstance(stress_suite, dict):
+        return None
+
+    results_block = stress_suite.get("results")
+    if isinstance(results_block, dict) and "missingness" in results_block:
+        return results_block.get("missingness")
+
+    if "missingness" in stress_suite:
+        return stress_suite.get("missingness")
+
+    return None
+
+
+def _flatten_metrics(metrics: dict) -> dict:
+    """
+    Flatten metric dict into keys that are Jinja-friendly.
+    Example: {"rmse": 1.2, "mae": 0.9} stays as-is.
+    """
+    if not isinstance(metrics, dict):
+        return {}
+    return dict(metrics)
+def _clip_0_100(x):
+    try:
+        x = float(x)
+    except Exception:
+        return None
+    return max(0.0, min(100.0, x))
+
+
+def _primary_metric_key(task: str):
+    # baseline keys in your report.html: regression uses rmse, classification uses accuracy
+    return "accuracy" if task == "classification" else "rmse"
+
+
+def _score_from_ratio(task: str, ratio: float) -> float:
+    """
+    Turn performance ratio into a 0–100 score.
+    - Classification: ratio = stressed / baseline, higher better
+    - Regression: ratio = baseline / stressed, higher better
+    """
+    # cap insane values
+    ratio = max(0.0, min(2.0, float(ratio)))  # allow up to 2x better then cap
+    return _clip_0_100(ratio * 100.0)
+
+
+def _compute_noise_score(task: str, baseline: dict, noise_block: dict):
+    """
+    Uses the highest noise-level point (last row) compared to baseline.
+    Expects noise_block["output"]["summary_records"] already prepared by app.py.
+    """
+    if not noise_block or noise_block.get("status") != "ok":
+        return None
+
+    out = noise_block.get("output", {}) or {}
+    rows = out.get("summary_records")
+    if not rows or len(rows) == 0:
+        return None
+
+    primary = _primary_metric_key(task)
+    base_val = (baseline or {}).get(primary)
+    if base_val is None:
+        return None
+
+    # pick the last row (highest noise level)
+    last = rows[-1]
+
+    # your noise table stores as "metrics.rmse" / "metrics.accuracy"
+    stressed_val = last.get(f"metrics.{primary}")
+    if stressed_val is None:
+        return None
+
+    base_val = float(base_val)
+    stressed_val = float(stressed_val)
+
+    if task == "classification":
+        # higher better
+        ratio = stressed_val / base_val if base_val != 0 else 0.0
+        return _score_from_ratio(task, ratio)
+    else:
+        # lower better -> invert
+        ratio = base_val / stressed_val if stressed_val != 0 else 0.0
+        return _score_from_ratio(task, ratio)
+
+
+def _compute_missingness_score(missing_block: dict):
+    """
+    Uses missingness output robustness_score (already computed in your missingness test).
+    """
+    if not missing_block or missing_block.get("status") != "ok":
+        return None
+    out = missing_block.get("output", {}) or {}
+    return _clip_0_100(out.get("robustness_score"))
+
+
+def _compute_feature_drop_score(task: str, baseline: dict, fd_block: dict):
+    """
+    Converts feature-drop sensitivity into a stability score.
+    Very lightweight:
+      - uses worst impact among ranked features
+      - impact = baseline_primary - after_drop_primary  (usually positive when it harms)
+      - score = 100 * (1 - worst_drop / |baseline_primary|)
+    """
+    if not fd_block or fd_block.get("status") != "ok":
+        return None
+
+    out = fd_block.get("output", {}) or {}
+    if isinstance(out, dict) and out.get("status") == "skip":
+        return None
+
+    ranked = out.get("ranked")
+    if not ranked or len(ranked) == 0:
+        return None
+
+    primary = _primary_metric_key(task)
+    base_val = (baseline or {}).get(primary)
+    if base_val is None:
+        return None
+
+    base_val = float(base_val)
+
+    # "impact" is already computed in your feature_drop output
+    worst_impact = None
+    for r in ranked:
+        try:
+            imp = float(r.get("impact"))
+        except Exception:
+            continue
+        if worst_impact is None or imp > worst_impact:
+            worst_impact = imp
+
+    if worst_impact is None:
+        return None
+
+    denom = abs(base_val) if abs(base_val) > 1e-9 else 1.0
+
+    if task == "classification":
+        # impact = acc drop (positive means worse)
+        score = 100.0 * (1.0 - (worst_impact / denom))
+        return _clip_0_100(score)
+    else:
+        # regression: depending on how you computed "impact", it might be rmse increase (positive is worse)
+        score = 100.0 * (1.0 - (worst_impact / denom))
+        return _clip_0_100(score)
+
+
+def compute_overall_robustness(results: dict):
+    """
+    Returns:
+      {
+        "overall": 0–100,
+        "components": {"noise":..., "missingness":..., "feature_drop":...},
+        "weights_used": {...}
+      }
+    """
+    if not isinstance(results, dict):
+        return None
+
+    task = results.get("task")
+    baseline = results.get("baseline") or {}
+
+    stress = results.get("stress") or {}
+    blocks = (stress.get("results") or {}) if isinstance(stress, dict) else {}
+
+    noise_block = blocks.get("noise")
+    missing_block = blocks.get("missingness")
+    fd_block = blocks.get("feature_drop")
+
+    noise_score = _compute_noise_score(task, baseline, noise_block)
+    missing_score = _compute_missingness_score(missing_block)
+    fd_score = _compute_feature_drop_score(task, baseline, fd_block)
+
+    components = {
+        "noise": noise_score,
+        "missingness": missing_score,
+        "feature_drop": fd_score,
+    }
+
+    # base weights
+    weights = {"noise": 0.4, "missingness": 0.4, "feature_drop": 0.2}
+
+    # keep only available components and re-normalize
+    available = {k: v for k, v in components.items() if v is not None}
+    if not available:
+        return None
+
+    wsum = sum(weights[k] for k in available.keys())
+    weights_used = {k: weights[k] / wsum for k in available.keys()}
+
+    overall = 0.0
+    for k, score in available.items():
+        overall += float(score) * weights_used[k]
+
+    return {
+        "overall": _clip_0_100(overall),
+        "components": components,
+        "weights_used": weights_used,
+    }
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -207,6 +411,37 @@ def index():
                 noise_output.pop("summary_df", None)
                 noise_block["output"] = noise_output
 
+        # ---------- Normalize Missingness output for UI (Phase 4) ----------
+        # We create ms_output["curve_records"] which is safe + flat for Jinja.
+        ms_block = _get_missingness_block(stress_suite) if stress_suite else None
+        if (
+            ms_block
+            and isinstance(ms_block, dict)
+            and ms_block.get("status") == "ok"
+        ):
+            ms_output = ms_block.get("output", {})
+
+            curve = ms_output.get("curve")
+            if isinstance(curve, list) and len(curve) > 0:
+                curve_records = []
+                for p in curve:
+                    if not isinstance(p, dict):
+                        continue
+                    lvl = p.get("missingness_level")
+                    m = _flatten_metrics(p.get("metrics", {}))
+
+                    # Store both nested and flattened keys for flexibility
+                    row = {
+                        "missingness_level": lvl,
+                        **m,
+                        "metrics": m,
+                    }
+                    curve_records.append(row)
+
+                ms_output["curve_records"] = curve_records
+
+            ms_block["output"] = ms_output
+
         return render_template("report.html", results=results)
 
     return render_template("index.html")
@@ -220,7 +455,7 @@ def not_found(e):
         "error.html",
         title="Page Not Found",
         code=404,
-        message="The page you’re looking for doesn’t exist.",
+        message="The page you're looking for doesn't exist.",
         hint="Check the URL or return home.",
         path=request.path,
     ), 404

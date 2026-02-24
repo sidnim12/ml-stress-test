@@ -10,6 +10,7 @@ from stress.schemas import detect_task_type
 
 from stress.tests.noise import run_noise_stress_test, NoiseStressConfig
 from stress.tests.feature_drop import run_feature_drop_test
+from stress.tests.missingness import run_missingness_shock_test, MissingnessShockConfig
 
 
 def _safe_block(fn, name: str) -> Dict[str, Any]:
@@ -28,6 +29,7 @@ def run_all_stress_tests(
     target_col: str,
     split: Optional[dict] = None,
     noise_config: NoiseStressConfig = NoiseStressConfig(),
+    missingness_config: MissingnessShockConfig = MissingnessShockConfig(),
 ) -> Dict[str, Any]:
     if not isinstance(df, pd.DataFrame):
         raise ValueError("df must be a pandas DataFrame")
@@ -38,7 +40,9 @@ def run_all_stress_tests(
 
     results: Dict[str, Any] = {}
 
+    # -------------------------
     # Phase 2 — Noise
+    # -------------------------
     def _noise():
         return run_noise_stress_test(
             model=model,
@@ -49,7 +53,22 @@ def run_all_stress_tests(
 
     results["noise"] = _safe_block(_noise, "noise")
 
+    # -------------------------
+    # Phase 4 — Missingness Shock
+    # -------------------------
+    def _missingness():
+        return run_missingness_shock_test(
+            model=model,
+            df=df,
+            target_col=target_col,
+            config=missingness_config,
+        )
+
+    results["missingness"] = _safe_block(_missingness, "missingness")
+
+    # -------------------------
     # Phase 3 — Feature Drop (leakage-safe if split exists)
+    # -------------------------
     def _feature_drop():
         if isinstance(split, dict) and all(k in split for k in ("X_train", "y_train", "X_test", "y_test")):
             return run_feature_drop_test(

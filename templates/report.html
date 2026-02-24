@@ -1,4 +1,4 @@
-<!-- templates/report.html (FULL FILE WITH PHASE 3 DIAGNOSTIC RENDERING) -->
+<!-- templates/report.html (FULL FILE — Phase 2 Noise + Phase 4 Missingness + Phase 3 Feature Drop + Overall Robustness Score) -->
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -55,10 +55,11 @@
 
     .kpi-grid {
       display:grid; gap:12px;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       margin-top: 14px;
     }
-    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
     .kcard {
       padding:14px 14px; border-radius:16px;
       border:1px solid var(--border);
@@ -104,8 +105,11 @@
     a.btn, a.btn:hover, a.btn:focus { text-decoration: none !important; }
 
     .table-cap { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 0 0 10px; color: var(--muted); }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-           font-size: 12px; padding: 2px 8px; border-radius: 999px; border:1px solid var(--border); background: var(--panel2); }
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px; padding: 2px 8px; border-radius: 999px;
+      border:1px solid var(--border); background: var(--panel2);
+    }
   </style>
 </head>
 
@@ -164,7 +168,8 @@
 
           <div class="subnav">
             <a class="chip" href="#baseline">📌 Baseline</a>
-            <a class="chip" href="#stress">🧪 Stress</a>
+            <a class="chip" href="#noise">🧪 Noise</a>
+            <a class="chip" href="#missingness">🕳️ Missingness</a>
             <a class="chip" href="#featuredrop">🧩 Feature Drop</a>
             <a class="chip" href="#preview">🔎 Preview</a>
           </div>
@@ -233,6 +238,18 @@
           <p class="kvalue">{{ dash(primary_value, 4) }}</p>
           <p class="khint">{{ secondary_label }}: <strong>{{ dash(secondary_value, 4) }}</strong></p>
         </div>
+
+        <div class="kcard">
+          <p class="klabel">Robustness Score</p>
+          <p class="kvalue">
+            {% if results.robustness and results.robustness.overall is not none %}
+              {{ dash(results.robustness.overall, 1) }}
+            {% else %}
+              -
+            {% endif %}
+          </p>
+          <p class="khint">0–100 (higher is better)</p>
+        </div>
       </div>
 
       {% if results.dropped_target_nan_rows and results.dropped_target_nan_rows > 0 %}
@@ -241,11 +258,35 @@
           Target values are never imputed.
         </div>
       {% endif %}
+
+      {% if results.robustness and results.robustness.components %}
+        <div class="hero-strip">
+          <div class="hero-left">
+            <p class="hero-title">Robustness Breakdown</p>
+            <p class="hero-sub muted">
+              Noise: <strong>{{ dash(results.robustness.components.noise, 1) }}</strong>
+              &nbsp;·&nbsp;
+              Missingness: <strong>{{ dash(results.robustness.components.missingness, 1) }}</strong>
+              &nbsp;·&nbsp;
+              Feature Drop: <strong>{{ dash(results.robustness.components.feature_drop, 1) }}</strong>
+            </p>
+          </div>
+          <div class="hero-right">
+            <span class="status-pill">
+              <span class="dot ok"></span>
+              Overall: <strong>{{ dash(results.robustness.overall, 1) }}</strong>
+            </span>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     <div class="card">
       <div class="card-inner">
 
+        <!-- ========================= -->
+        <!-- BASELINE -->
+        <!-- ========================= -->
         <div id="baseline" class="section-head">
           <p class="h2">Baseline Metrics</p>
           <div class="tools">
@@ -256,7 +297,7 @@
 
         <p class="table-cap">
           <span>Metrics shown are task-aware. Missing / undefined values are displayed as <strong>-</strong>.</span>
-          <span class="muted2">Cleaner than “NaN” → avoids confusion with imputation.</span>
+        
         </p>
 
         <table class="table" id="baselineTable">
@@ -278,7 +319,10 @@
 
         <div class="hr"></div>
 
-        <div id="stress" class="section-head">
+        <!-- ========================= -->
+        <!-- PHASE 2 — NOISE -->
+        <!-- ========================= -->
+        <div id="noise" class="section-head">
           <p class="h2">Phase 2 — Noise Stress Test</p>
           <div class="tools">
             <button class="mini-btn" type="button" onclick="copyTable('noiseTable')">📋 Copy</button>
@@ -305,7 +349,7 @@
 
             <div class="hero-strip" style="margin-top:12px;">
               <div class="hero-left">
-                <p class="hero-title">Stress Summary</p>
+                <p class="hero-title">Noise Summary</p>
                 <p class="hero-sub">
                   Status: <strong>{{ simple(st) }}</strong>
                   &nbsp;•&nbsp;
@@ -409,12 +453,142 @@
         <div class="hr"></div>
 
         <!-- ========================= -->
+        <!-- PHASE 4 — MISSINGNESS SHOCK -->
+        <!-- ========================= -->
+        <div id="missingness" class="section-head" style="margin-top:18px;">
+          <p class="h2">Phase 4 — Missingness Shock Test</p>
+          <div class="tools">
+            <button class="mini-btn" type="button" onclick="copyTable('missingnessTable')">📋 Copy</button>
+            <a class="mini-btn" href="#top" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">⬆ Top</a>
+          </div>
+        </div>
+
+        {% set ms_block = none %}
+        {% if results.run_stress and results.stress and results.stress.get("results") %}
+          {% set ms_block = results.stress.get("results").get("missingness") %}
+        {% endif %}
+
+        {% if ms_block and ms_block.status == "ok" %}
+          {% set ms = ms_block.output %}
+
+          <div class="hero-strip" style="margin-top:12px;">
+            <div class="hero-left">
+              <p class="hero-title">Missingness Summary</p>
+              <p class="hero-sub">
+                Robustness score: <strong>{{ dash(ms.robustness_score, 1) }}</strong>
+                &nbsp;•&nbsp;
+                Collapse threshold:
+                <strong>
+                  {% if ms.collapse_threshold is not none %}
+                    {{ dash(ms.collapse_threshold, 2) }}
+                  {% else %}
+                    Not reached
+                  {% endif %}
+                </strong>
+              </p>
+            </div>
+            <div class="hero-right">
+              <span class="status-pill"><span class="dot ok"></span>Completed</span>
+              <span class="status-pill">
+                <span class="dot"></span>
+                Levels: {{ simple(ms.config.levels|length if ms.config and ms.config.levels else "-") }}
+              </span>
+            </div>
+          </div>
+
+          {% set ms_rows = ms.curve_records if ms.curve_records is defined else none %}
+          {% if ms_rows and ms_rows|length > 0 %}
+
+            <details class="fold" open style="margin-top:12px;">
+              <summary>
+                Missingness curve results (table)
+                <span class="muted2">click to collapse</span>
+              </summary>
+              <div class="fold-body">
+
+                <table class="table" id="missingnessTable">
+                  <thead>
+                    <tr>
+                      <th>Missingness Level</th>
+                      <th>Masked Cells (est.)</th>
+
+                      {% if results.task == "classification" %}
+                        <th>Accuracy</th>
+                        <th>F1</th>
+                        <th>Balanced Accuracy</th>
+                        <th>ROC-AUC</th>
+                      {% else %}
+                        <th>RMSE</th>
+                        <th>MAE</th>
+                        <th>R²</th>
+                        <th>MAPE %</th>
+                      {% endif %}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {% for r in ms_rows %}
+                      <tr>
+                        <td>{{ dash(r.missingness_level, 4) }}</td>
+                        <td>
+                          {% if ms.curve and ms.curve[loop.index0] and ms.curve[loop.index0].masked_cells_est is defined %}
+                            {{ simple(ms.curve[loop.index0].masked_cells_est) }}
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+
+                        {% if results.task == "classification" %}
+                          <td>{{ dash(r.accuracy, 4) }}</td>
+                          <td>{{ dash(r.f1, 4) }}</td>
+                          <td>{{ dash(r.balanced_accuracy, 4) }}</td>
+                          <td>{{ dash(r.roc_auc, 4) }}</td>
+                        {% else %}
+                          <td>{{ dash(r.rmse, 4) }}</td>
+                          <td>{{ dash(r.mae, 4) }}</td>
+                          <td>{{ dash(r.r2, 4) }}</td>
+                          <td>{{ dash(r.mape_percent, 2) }}</td>
+                        {% endif %}
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+
+              </div>
+            </details>
+
+            <p class="note" style="margin-top:10px;">
+              Interpretation hint: if performance degrades sharply at small missingness (5–10%), your pipeline is fragile.
+              In production, that becomes a data-quality SLA risk.
+            </p>
+
+          {% else %}
+            <div class="alert warn">
+              Missingness test ran but no curve rows were produced. Ensure app.py creates <code>curve_records</code>.
+            </div>
+          {% endif %}
+
+        {% elif ms_block and ms_block.status == "error" %}
+          <div class="alert" style="border-color: rgba(244,63,94,.35);">
+            <strong style="color:#fb7185;">Missingness Shock failed.</strong>
+            <div class="muted" style="margin-top:6px;">
+              {{ simple(ms_block.error) }}
+            </div>
+          </div>
+        {% else %}
+          <div class="alert warn">Missingness Shock test not available.</div>
+        {% endif %}
+
+        <div class="hr"></div>
+
+        <!-- ========================= -->
         <!-- PHASE 3 — FEATURE DROP -->
         <!-- ========================= -->
         <div id="featuredrop" class="section-head" style="margin-top:18px;">
           <p class="h2">Phase 3 — Feature Drop Sensitivity</p>
           <div class="tools">
             <button class="mini-btn" type="button" onclick="copyTable('featureDropTable')">📋 Copy</button>
+            <a class="mini-btn" href="#top" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">⬆ Top</a>
           </div>
         </div>
 
@@ -430,7 +604,6 @@
             <div class="alert warn">
               Feature Drop skipped: {{ simple(fd.reason) }}
             </div>
-
           {% else %}
 
             <div class="hero-strip" style="margin-top:12px;">
@@ -506,6 +679,9 @@
 
         <div class="hr"></div>
 
+        <!-- ========================= -->
+        <!-- PREVIEW -->
+        <!-- ========================= -->
         <div id="preview" class="section-head">
           <p class="h2">Dataset Preview</p>
           <div class="tools">
@@ -556,7 +732,7 @@
 
     <div class="footer">
       <div>Baseline Engine · Stress Suite · Degradation Diagnostics</div>
-      <div>Next: Missingness Shock · Feature Sensitivity · Shift Simulation</div>
+      <div>Next: Covariate Shift · Drift Metrics · Robustness Radar</div>
     </div>
 
   </div>
