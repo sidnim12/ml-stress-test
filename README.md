@@ -7,11 +7,11 @@ ML-Stress-Test is a structured robustness evaluation framework that measures how
 
 It shifts evaluation from:
 
-“How accurate is the model?”
+**"How accurate is the model?"**
 
 to:
 
-“How stable is the model under real-world stress?”
+**"How stable is the model under real-world stress?"**
 
 ---
 
@@ -33,68 +33,64 @@ ML-Stress-Test addresses this gap.
 
 ---
 
-# Project Goals
-
-- Provide a modular stress-testing framework
-- Support both regression and classification tasks
-- Measure degradation patterns under controlled perturbations
-- Compute interpretable robustness indicators
-- Provide interactive evaluation through a web interface
-- Enable extension with new stress types
-
----
-
 # System Architecture
 
-The system is organized into modular components:
+The framework is organized into modular components with clear separation of responsibilities.
 
+```mermaid
+flowchart TD
+
+A[Dataset / User Input] --> B[Baseline Model Training]
+B --> C[Metrics Engine - Task Detection & Safe Registry]
+C --> D[Stress Runner Orchestrator]
+
+D --> E1[Noise Injection Test]
+D --> E2[Missingness Shock Test]
+D --> E3[Feature Drop Sensitivity Test]
+D --> E4[Covariate Shift Simulation]
+D --> E5[Class Imbalance Shift - Planned]
+
+E1 --> F[Degradation Analysis]
+E2 --> F
+E3 --> F
+E4 --> F
+E5 --> F
+
+F --> G[Robustness Scoring Engine]
+G --> H[Reporting Layer]
+
+H --> I1[Web Dashboard - Flask]
+H --> I2[JSON / CSV Export - Planned]
 ```
-ML-STRESS-TEST/
-│
-├── models/
-│   ├── baseline.py
-│   └── loader.py
-│
-├── stress/
-│   ├── tests/
-│   │   ├── noise.py
-│   │   ├── missingness.py
-│   │   ├── feature_drop.py
-│   │   ├── covariate_shift.py
-│   │   └── imbalanced_shift.py (planned)
-│   │
-│   ├── metrics.py
-│   ├── runner.py
-│   ├── report.py
-│   └── schemas.py
-│
-├── templates/
-├── static/
-├── app.py
-└── README.md
-```
 
-Key architectural principles:
+### Architectural Principles
 
-- Separation of concerns
-- Deterministic stress simulation via seed control
-- Safe metric computation wrappers
-- Task-aware evaluation (automatic classification/regression detection)
-- Extensibility for additional stress tests
+- Separation of concerns  
+- Deterministic stress simulation (seed-controlled)  
+- Task-aware evaluation (classification vs regression)  
+- Safe metric computation wrappers  
+- Modular stress test implementations  
+- Extensible design for future stress modules  
 
 ---
 
 # Web Interface
 
-The project includes a Flask-based web application that provides:
+ML-Stress-Test includes a Flask-based web application that provides:
 
-- Baseline model evaluation
+- Baseline evaluation
 - Selectable stress test execution
-- Degradation tables and summaries
-- Stability classification
+- Degradation tables
+- Stability classification summaries
 - Robustness scoring overview
 
-The web layer transforms raw metric degradation into an interpretable evaluation dashboard, making the framework usable beyond CLI experimentation.
+Core web components:
+
+- `app.py` – Flask entry point  
+- `templates/` – Structured HTML reports  
+- `static/` – UI styling assets  
+
+The web layer transforms raw degradation metrics into an interpretable evaluation dashboard suitable for experimentation and analysis.
 
 ---
 
@@ -116,8 +112,8 @@ Simulates Gaussian noise scaled by feature standard deviation.
 
 Measures:
 
-- Metric degradation across noise levels
-- Absolute and percentage drop
+- Absolute metric degradation
+- Percentage drop
 - Noise robustness summary
 
 Purpose:
@@ -151,17 +147,17 @@ Measures:
 - Stability classification
 
 Purpose:
-Evaluate resilience to upstream pipeline degradation.
+Evaluate resilience to upstream data pipeline degradation.
 
 ---
 
 ## Covariate Shift Simulation
 
-Simulates distribution drift via:
+Simulates distribution drift using:
 
 - Feature scaling perturbation
 - Mean shifting
-- Range modification
+- Range clipping
 - Category dropout
 - Category substitution
 
@@ -185,14 +181,14 @@ Evaluate robustness to distribution shift — a primary cause of production ML f
 - Balanced accuracy monitoring
 - Metric illusion detection
 
-## Robustness Scoring Engine
+## Robustness Scoring Engine (improvements)
 
 - Normalized degradation aggregation
 - Early-collapse penalty
 - Area-under-curve scoring
 - Overall robustness index
 
-## Reporting & Export Enhancements
+## Reporting & Export Enhancements 
 
 - JSON export
 - CSV export
@@ -201,18 +197,63 @@ Evaluate robustness to distribution shift — a primary cause of production ML f
 
 ---
 
-# Engineering Considerations
+# Repository Structure
 
-- Modular stress test design
-- Configurable experiment parameters
-- Reproducible results via fixed seeds
-- Safe handling of metric computation signatures
-- Task-aware evaluation logic
-- No over-engineering; extensible but controlled complexity
+```
+ML-STRESS-TEST/
+│
+├── configs/
+│   └── default.yaml
+│
+├── examples/
+│   └── example_config.yaml
+│
+├── models/
+│   ├── baseline.py
+│   └── loader.py
+│
+├── stress/
+│   ├── tests/
+│   │   ├── noise.py
+│   │   ├── missingness.py
+│   │   ├── feature_drop.py
+│   │   ├── covariate_shift.py
+│   │   └── imbalanced_shift.py
+│   │
+│   ├── metrics.py
+│   ├── report.py
+│   ├── runner.py
+│   └── schemas.py
+│
+├── templates/
+│   ├── index.html
+│   ├── report.html
+│   └── error.html
+│
+├── static/
+│   └── style.css
+│
+├── app.py
+├── requirements.txt
+└── README.md
+```
+
+---
+# Running the Web Application
+
+```bash
+python app.py
+```
+
+Then open:
+
+```
+http://127.0.0.1:5000
+```
 
 ---
 
-# Why This Matters
+# Why This Project Matters
 
 Most ML repositories demonstrate:
 
@@ -231,22 +272,8 @@ ML-Stress-Test formalizes robustness evaluation as a first-class engineering pro
 
 ---
 
-# Running the Web App
-
-```
-python app.py
-```
-
-Then navigate to:
-
-```
-http://127.0.0.1:5000
-```
-
----
-
 # Summary
 
 ML-Stress-Test is a modular robustness evaluation framework designed to analyze how machine learning systems behave under stress.
 
-It moves evaluation beyond static metrics and provides structured insights into stability, fragility, and degradation behavior — critical for real-world ML deployment.
+It extends traditional evaluation by modeling degradation behavior and stability patterns — essential considerations for real-world ML deployment.
