@@ -81,6 +81,25 @@ def _get_missingness_block(stress_suite: dict):
     return None
 
 
+def _get_covshift_block(stress_suite: dict):
+    """
+    Phase 5 block getter:
+      A) {"results": {"covariate_shift": {...}}}
+      B) {"covariate_shift": {...}}
+    """
+    if not isinstance(stress_suite, dict):
+        return None
+
+    results_block = stress_suite.get("results")
+    if isinstance(results_block, dict) and "covariate_shift" in results_block:
+        return results_block.get("covariate_shift")
+
+    if "covariate_shift" in stress_suite:
+        return stress_suite.get("covariate_shift")
+
+    return None
+
+
 def _flatten_metrics(metrics: dict) -> dict:
     """
     Flatten metric dict into keys that are Jinja-friendly.
@@ -89,6 +108,8 @@ def _flatten_metrics(metrics: dict) -> dict:
     if not isinstance(metrics, dict):
         return {}
     return dict(metrics)
+
+
 def _clip_0_100(x):
     try:
         x = float(x)
@@ -108,8 +129,7 @@ def _score_from_ratio(task: str, ratio: float) -> float:
     - Classification: ratio = stressed / baseline, higher better
     - Regression: ratio = baseline / stressed, higher better
     """
-    # cap insane values
-    ratio = max(0.0, min(2.0, float(ratio)))  # allow up to 2x better then cap
+    ratio = max(0.0, min(2.0, float(ratio)))  # cap extreme improvement
     return _clip_0_100(ratio * 100.0)
 
 
@@ -131,10 +151,7 @@ def _compute_noise_score(task: str, baseline: dict, noise_block: dict):
     if base_val is None:
         return None
 
-    # pick the last row (highest noise level)
     last = rows[-1]
-
-    # your noise table stores as "metrics.rmse" / "metrics.accuracy"
     stressed_val = last.get(f"metrics.{primary}")
     if stressed_val is None:
         return None
@@ -143,11 +160,9 @@ def _compute_noise_score(task: str, baseline: dict, noise_block: dict):
     stressed_val = float(stressed_val)
 
     if task == "classification":
-        # higher better
         ratio = stressed_val / base_val if base_val != 0 else 0.0
         return _score_from_ratio(task, ratio)
     else:
-        # lower better -> invert
         ratio = base_val / stressed_val if stressed_val != 0 else 0.0
         return _score_from_ratio(task, ratio)
 
@@ -165,10 +180,8 @@ def _compute_missingness_score(missing_block: dict):
 def _compute_feature_drop_score(task: str, baseline: dict, fd_block: dict):
     """
     Converts feature-drop sensitivity into a stability score.
-    Very lightweight:
-      - uses worst impact among ranked features
-      - impact = baseline_primary - after_drop_primary  (usually positive when it harms)
-      - score = 100 * (1 - worst_drop / |baseline_primary|)
+    Uses worst impact among ranked features.
+    score = 100 * (1 - worst_impact / |baseline_primary|)
     """
     if not fd_block or fd_block.get("status") != "ok":
         return None
@@ -188,7 +201,6 @@ def _compute_feature_drop_score(task: str, baseline: dict, fd_block: dict):
 
     base_val = float(base_val)
 
-    # "impact" is already computed in your feature_drop output
     worst_impact = None
     for r in ranked:
         try:
@@ -202,15 +214,47 @@ def _compute_feature_drop_score(task: str, baseline: dict, fd_block: dict):
         return None
 
     denom = abs(base_val) if abs(base_val) > 1e-9 else 1.0
+    score = 100.0 * (1.0 - (worst_impact / denom))
+    return _clip_0_100(score)
 
-    if task == "classification":
-        # impact = acc drop (positive means worse)
-        score = 100.0 * (1.0 - (worst_impact / denom))
-        return _clip_0_100(score)
-    else:
-        # regression: depending on how you computed "impact", it might be rmse increase (positive is worse)
-        score = 100.0 * (1.0 - (worst_impact / denom))
-        return _clip_0_100(score)
+
+def _compute_covshift_score(cov_block: dict):
+    """
+    Phase 5 score from covariate shift output.
+    Uses:
+      - max_degradation_pct (0..100, higher worse)
+      - shift_sensitivity_index (SSI, higher worse)
+    Score idea (traditional, practical):
+      score = 100 - (0.7 * max_deg + 0.3 * min(100, SSI))
+    """
+    if not cov_block or cov_block.get("status") != "ok":
+        return None
+
+    out = cov_block.get("output", {}) or {}
+    summary = out.get("summary", {}) or {}
+
+    try:
+        max_deg = float(summary.get("max_degradation_pct"))
+    except Exception:
+        max_deg = None
+
+    try:
+        ssi = float(summary.get("shift_sensitivity_index"))
+    except Exception:
+        ssi = None
+
+    if max_deg is None and ssi is None:
+        return None
+
+    if max_deg is None:
+        max_deg = 0.0
+    if ssi is None:
+        ssi = 0.0
+
+    ssi_capped = max(0.0, min(100.0, ssi))
+    penalty = 0.7 * max(0.0, max_deg) + 0.3 * ssi_capped
+    score = 100.0 - penalty
+    return _clip_0_100(score)
 
 
 def compute_overall_robustness(results: dict):
@@ -218,7 +262,7 @@ def compute_overall_robustness(results: dict):
     Returns:
       {
         "overall": 0–100,
-        "components": {"noise":..., "missingness":..., "feature_drop":...},
+        "components": {"noise":..., "missingness":..., "feature_drop":..., "covariate_shift":...},
         "weights_used": {...}
       }
     """
@@ -234,21 +278,28 @@ def compute_overall_robustness(results: dict):
     noise_block = blocks.get("noise")
     missing_block = blocks.get("missingness")
     fd_block = blocks.get("feature_drop")
+    cov_block = blocks.get("covariate_shift")
 
     noise_score = _compute_noise_score(task, baseline, noise_block)
     missing_score = _compute_missingness_score(missing_block)
     fd_score = _compute_feature_drop_score(task, baseline, fd_block)
+    cov_score = _compute_covshift_score(cov_block)
 
     components = {
         "noise": noise_score,
         "missingness": missing_score,
         "feature_drop": fd_score,
+        "covariate_shift": cov_score,
     }
 
-    # base weights
-    weights = {"noise": 0.4, "missingness": 0.4, "feature_drop": 0.2}
+    # base weights (re-normalized based on availability)
+    weights = {
+        "noise": 0.30,
+        "missingness": 0.30,
+        "feature_drop": 0.20,
+        "covariate_shift": 0.20,
+    }
 
-    # keep only available components and re-normalize
     available = {k: v for k, v in components.items() if v is not None}
     if not available:
         return None
@@ -265,6 +316,7 @@ def compute_overall_robustness(results: dict):
         "components": components,
         "weights_used": weights_used,
     }
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -387,7 +439,7 @@ def index():
                     model=model,
                     df=test_df,
                     target_col=target_col,
-                    split=split,  # ✅ IMPORTANT: enables Phase 3 to use X_train/X_test properly
+                    split=split,  # ✅ enables Phase 3 leakage-safe mode
                 )
             except Exception as e:
                 stress_warning = f"Stress tests failed: {e}"
@@ -403,7 +455,7 @@ def index():
             and isinstance(noise_block, dict)
             and noise_block.get("status") == "ok"
         ):
-            noise_output = noise_block.get("output", {})
+            noise_output = noise_block.get("output", {}) or {}
             summary_df = noise_output.get("summary_df")
 
             if summary_df is not None:
@@ -412,14 +464,13 @@ def index():
                 noise_block["output"] = noise_output
 
         # ---------- Normalize Missingness output for UI (Phase 4) ----------
-        # We create ms_output["curve_records"] which is safe + flat for Jinja.
         ms_block = _get_missingness_block(stress_suite) if stress_suite else None
         if (
             ms_block
             and isinstance(ms_block, dict)
             and ms_block.get("status") == "ok"
         ):
-            ms_output = ms_block.get("output", {})
+            ms_output = ms_block.get("output", {}) or {}
 
             curve = ms_output.get("curve")
             if isinstance(curve, list) and len(curve) > 0:
@@ -430,7 +481,6 @@ def index():
                     lvl = p.get("missingness_level")
                     m = _flatten_metrics(p.get("metrics", {}))
 
-                    # Store both nested and flattened keys for flexibility
                     row = {
                         "missingness_level": lvl,
                         **m,
@@ -441,6 +491,18 @@ def index():
                 ms_output["curve_records"] = curve_records
 
             ms_block["output"] = ms_output
+
+        # ---------- Phase 5: Covariate Shift ----------
+        # Your covariate_shift test already returns `curve_records` in the right flat form,
+        # so we don't need extra conversions here. This is just a safe hook in case you
+        # later want to normalize fields.
+        cs_block = _get_covshift_block(stress_suite) if stress_suite else None
+        if cs_block and isinstance(cs_block, dict) and cs_block.get("status") == "ok":
+            cs_output = cs_block.get("output", {}) or {}
+            cs_block["output"] = cs_output
+
+        # ---------- Compute robustness (NOW ACTUALLY ATTACH IT) ----------
+        results["robustness"] = compute_overall_robustness(results)
 
         return render_template("report.html", results=results)
 

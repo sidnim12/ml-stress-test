@@ -1,4 +1,4 @@
-<!-- templates/report.html (FULL FILE — Phase 2 Noise + Phase 4 Missingness + Phase 3 Feature Drop + Overall Robustness Score) -->
+<!-- templates/report.html (FULL FILE — Phase 2 Noise + Phase 4 Missingness + Phase 3 Feature Drop + Phase 5 Covariate Shift + Overall Robustness Score) -->
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -171,6 +171,7 @@
             <a class="chip" href="#noise">🧪 Noise</a>
             <a class="chip" href="#missingness">🕳️ Missingness</a>
             <a class="chip" href="#featuredrop">🧩 Feature Drop</a>
+            <a class="chip" href="#covshift">📉 Covariate Shift</a>
             <a class="chip" href="#preview">🔎 Preview</a>
           </div>
         </div>
@@ -269,6 +270,8 @@
               Missingness: <strong>{{ dash(results.robustness.components.missingness, 1) }}</strong>
               &nbsp;·&nbsp;
               Feature Drop: <strong>{{ dash(results.robustness.components.feature_drop, 1) }}</strong>
+              &nbsp;·&nbsp;
+              Covariate Shift: <strong>{{ dash(results.robustness.components.covariate_shift, 1) }}</strong>
             </p>
           </div>
           <div class="hero-right">
@@ -297,7 +300,6 @@
 
         <p class="table-cap">
           <span>Metrics shown are task-aware. Missing / undefined values are displayed as <strong>-</strong>.</span>
-        
         </p>
 
         <table class="table" id="baselineTable">
@@ -680,6 +682,126 @@
         <div class="hr"></div>
 
         <!-- ========================= -->
+        <!-- PHASE 5 — COVARIATE SHIFT -->
+        <!-- ========================= -->
+        <div id="covshift" class="section-head" style="margin-top:18px;">
+          <p class="h2">Phase 5 — Covariate Shift Simulation</p>
+          <div class="tools">
+            <button class="mini-btn" type="button" onclick="copyTable('covShiftTable')">📋 Copy</button>
+            <a class="mini-btn" href="#top" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">⬆ Top</a>
+          </div>
+        </div>
+
+        {% set cs_block = none %}
+        {% if results.run_stress and results.stress and results.stress.get("results") %}
+          {% set cs_block = results.stress.get("results").get("covariate_shift") %}
+        {% endif %}
+
+        {% if cs_block and cs_block.status == "ok" %}
+          {% set cs = cs_block.output %}
+          {% set ssi = cs.summary.shift_sensitivity_index if cs.summary is defined else none %}
+          {% set stab = cs.summary.stability if cs.summary is defined else none %}
+
+          <div class="hero-strip" style="margin-top:12px;">
+            <div class="hero-left">
+              <p class="hero-title">Shift Summary</p>
+              <p class="hero-sub">
+                SSI: <strong>{{ dash(ssi, 2) }}</strong>
+                &nbsp;•&nbsp;
+                Stability: <strong>{{ simple(stab) }}</strong>
+                &nbsp;•&nbsp;
+                Max degradation: <strong>{{ dash(cs.summary.max_degradation_pct, 2) }}%</strong>
+              </p>
+            </div>
+            <div class="hero-right">
+              <span class="status-pill"><span class="dot ok"></span>Completed</span>
+              <span class="status-pill">
+                <span class="dot"></span>
+                Levels: {{ simple(cs.config.levels|length if cs.config and cs.config.levels else "-") }}
+              </span>
+            </div>
+          </div>
+
+          {% set cs_rows = cs.curve_records if cs.curve_records is defined else none %}
+          {% if cs_rows and cs_rows|length > 0 %}
+
+            <details class="fold" open style="margin-top:12px;">
+              <summary>
+                Covariate shift curve results (table)
+                <span class="muted2">click to collapse</span>
+              </summary>
+              <div class="fold-body">
+
+                <table class="table" id="covShiftTable">
+                  <thead>
+                    <tr>
+                      <th>Shift Level</th>
+
+                      {% if results.task == "classification" %}
+                        <th>Accuracy</th>
+                        <th>F1</th>
+                        <th>Balanced Accuracy</th>
+                        <th>ROC-AUC</th>
+                      {% else %}
+                        <th>RMSE</th>
+                        <th>MAE</th>
+                        <th>R²</th>
+                        <th>MAPE %</th>
+                      {% endif %}
+
+                      <th>Degradation %</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {% for r in cs_rows %}
+                      <tr>
+                        <td>{{ dash(r.shift_level, 4) }}</td>
+
+                        {% if results.task == "classification" %}
+                          <td>{{ dash(r["metrics.accuracy"], 4) }}</td>
+                          <td>{{ dash(r["metrics.f1"], 4) }}</td>
+                          <td>{{ dash(r["metrics.balanced_accuracy"], 4) }}</td>
+                          <td>{{ dash(r["metrics.roc_auc"], 4) }}</td>
+                        {% else %}
+                          <td>{{ dash(r["metrics.rmse"], 4) }}</td>
+                          <td>{{ dash(r["metrics.mae"], 4) }}</td>
+                          <td>{{ dash(r["metrics.r2"], 4) }}</td>
+                          <td>{{ dash(r["metrics.mape_percent"], 2) }}</td>
+                        {% endif %}
+
+                        <td>{{ dash(r.degradation_pct, 2) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+
+              </div>
+            </details>
+
+            <p class="note" style="margin-top:10px;">
+              Interpretation hint: covariate shift is “real world drift”.
+              If degradation rises quickly at low shift levels, your model needs monitoring + retraining triggers.
+            </p>
+
+          {% else %}
+            <div class="alert warn">Covariate shift ran but produced no curve rows.</div>
+          {% endif %}
+
+        {% elif cs_block and cs_block.status == "error" %}
+          <div class="alert" style="border-color: rgba(244,63,94,.35);">
+            <strong style="color:#fb7185;">Covariate Shift failed.</strong>
+            <div class="muted" style="margin-top:6px;">
+              {{ simple(cs_block.error) }}
+            </div>
+          </div>
+        {% else %}
+          <div class="alert warn">Covariate Shift test not available.</div>
+        {% endif %}
+
+        <div class="hr"></div>
+
+        <!-- ========================= -->
         <!-- PREVIEW -->
         <!-- ========================= -->
         <div id="preview" class="section-head">
@@ -732,7 +854,7 @@
 
     <div class="footer">
       <div>Baseline Engine · Stress Suite · Degradation Diagnostics</div>
-      <div>Next: Covariate Shift · Drift Metrics · Robustness Radar</div>
+      <div>Next: Drift Metrics · Monitoring Triggers · Retraining Policy</div>
     </div>
 
   </div>

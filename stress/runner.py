@@ -12,6 +12,9 @@ from stress.tests.noise import run_noise_stress_test, NoiseStressConfig
 from stress.tests.feature_drop import run_feature_drop_test
 from stress.tests.missingness import run_missingness_shock_test, MissingnessShockConfig
 
+# ✅ Phase 5
+from stress.tests.covariate_shift import run_covariate_shift_test, CovariateShiftConfig
+
 
 def _safe_block(fn, name: str) -> Dict[str, Any]:
     t0 = time.time()
@@ -30,6 +33,7 @@ def run_all_stress_tests(
     split: Optional[dict] = None,
     noise_config: NoiseStressConfig = NoiseStressConfig(),
     missingness_config: MissingnessShockConfig = MissingnessShockConfig(),
+    covshift_config: CovariateShiftConfig = CovariateShiftConfig(),
 ) -> Dict[str, Any]:
     if not isinstance(df, pd.DataFrame):
         raise ValueError("df must be a pandas DataFrame")
@@ -98,5 +102,18 @@ def run_all_stress_tests(
         )
 
     results["feature_drop"] = _safe_block(_feature_drop, "feature_drop")
+
+    # -------------------------
+    # Phase 5 — Covariate Shift
+    # -------------------------
+    def _covariate_shift():
+        return run_covariate_shift_test(
+            model=model,
+            df=df,
+            target_col=target_col,
+            config=covshift_config,
+        )
+
+    results["covariate_shift"] = _safe_block(_covariate_shift, "covariate_shift")
 
     return {"status": "ok", "task": task, "results": results}
