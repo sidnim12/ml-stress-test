@@ -1,4 +1,4 @@
-# models/baseline.py
+﻿# models/baseline.py
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -8,8 +8,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, Ridge
 
-from stress.schemas import detect_task_type
-from stress.metrics import (
+from ml_stress_test.schemas import detect_task_type
+from ml_stress_test.metrics import (
     ClassificationConfig,
     RegressionConfig,
     classification_metrics,

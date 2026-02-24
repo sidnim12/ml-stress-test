@@ -1,11 +1,11 @@
-# app.py
+﻿# app.py
 from flask import Flask, render_template, request
 import pandas as pd
 import traceback
 
-from stress.schemas import validate_inputs, clean_target_nans
+from ml_stress_test.schemas import validate_inputs, clean_target_nans
 from models.baseline import train_and_evaluate_baseline
-from stress.runner import run_all_stress_tests
+from ml_stress_test.runner import run_all_stress_tests
 
 app = Flask(__name__)
 
@@ -125,7 +125,7 @@ def _primary_metric_key(task: str):
 
 def _score_from_ratio(task: str, ratio: float) -> float:
     """
-    Turn performance ratio into a 0–100 score.
+    Turn performance ratio into a 0â€“100 score.
     - Classification: ratio = stressed / baseline, higher better
     - Regression: ratio = baseline / stressed, higher better
     """
@@ -261,7 +261,7 @@ def compute_overall_robustness(results: dict):
     """
     Returns:
       {
-        "overall": 0–100,
+        "overall": 0â€“100,
         "components": {"noise":..., "missingness":..., "feature_drop":..., "covariate_shift":...},
         "weights_used": {...}
       }
@@ -439,7 +439,7 @@ def index():
                     model=model,
                     df=test_df,
                     target_col=target_col,
-                    split=split,  # ✅ enables Phase 3 leakage-safe mode
+                    split=split,  # âœ… enables Phase 3 leakage-safe mode
                 )
             except Exception as e:
                 stress_warning = f"Stress tests failed: {e}"
